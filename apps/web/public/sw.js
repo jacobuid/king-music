@@ -1,4 +1,4 @@
-const CACHE = 'king-music-shell-v38'
+const CACHE = 'king-music-shell-v41'
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['./', './manifest.webmanifest', './favicon/android-chrome-192x192.png', './favicon/android-chrome-512x512.png', './favicon/favicon.ico', './favicon/favicon-32x32.png', './favicon/favicon-16x16.png', './favicon/apple-touch-icon.png'])))
 })

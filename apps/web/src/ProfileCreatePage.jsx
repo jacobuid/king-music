@@ -13,7 +13,7 @@ export function ProfileCreatePage({ busy, error, firstProfile, editingProfile, o
       {error&&<p className="km-alert" role="alert">{error}</p>}
       <form onSubmit={onSubmit}>
         <fieldset className="km-upload-fields" disabled={busy}>
-          <label htmlFor="new-profile-name">Name<input id="new-profile-name" name="name" defaultValue={editingProfile?.name || ''} maxLength={40} autoComplete="off" autoFocus required/></label>
+          <label htmlFor="new-profile-name">Name<input id="new-profile-name" name="name" defaultValue={editingProfile?.name || ''} maxLength={40} autoComplete="off" required/></label>
           <label htmlFor="new-profile-pin">{editingProfile?'New four-digit PIN (optional)':'Four-digit PIN'}<input id="new-profile-pin" name="pin" type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4}" maxLength={4} required={!editingProfile} placeholder={editingProfile?'Leave blank to keep the current PIN':undefined}/></label>
           <div className="km-profile-picture-field"><span id="profile-picture-label">Picture</span><div className="km-profile-picture-selection"><img src={avatarImage(avatar)} alt={`${avatarName(avatar)} profile picture`}/><span>{avatarName(avatar)}</span><button type="button" aria-haspopup="dialog" aria-controls="profile-avatar-gallery" aria-labelledby="select-profile-picture profile-picture-label" onClick={()=>setGalleryOpen(true)}><span id="select-profile-picture">Select</span></button></div></div>
           <input type="hidden" name="avatar" value={avatar}/>
