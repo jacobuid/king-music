@@ -1,0 +1,6 @@
+﻿.git
+.importer-venv
+__pycache__
+*.pyc
+.env*
+.gcloud

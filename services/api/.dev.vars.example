@@ -1,5 +1,5 @@
-CLERK_SECRET_KEY=sk_test_replace_me
-CLERK_PUBLISHABLE_KEY=pk_test_replace_me
-B2_KEY_ID=replace_me
-B2_APPLICATION_KEY=replace_me
+APP_SIGNING_SECRET=replace-with-random-secret-at-least-32-bytes
+B2_KEY_ID=replace-with-bucket-scoped-key-id
+B2_APPLICATION_KEY=replace-with-bucket-scoped-read-write-key
 B2_ENDPOINT=https://s3.us-west-004.backblazeb2.com
+B2_BUCKET=replace-with-private-king-music-bucket

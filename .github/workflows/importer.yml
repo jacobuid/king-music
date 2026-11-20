@@ -1,0 +1,21 @@
+name: Importer checks
+on:
+  push:
+    paths: ['services/importer/**', '.github/workflows/importer.yml']
+  pull_request:
+    paths: ['services/importer/**', '.github/workflows/importer.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r services/importer/requirements.txt httpx
+      - run: python -m unittest discover -s services/importer/tests -v
+        env:
+          PYTHONPATH: services/importer
+      - run: docker build -t king-music-importer services/importer

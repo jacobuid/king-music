@@ -1,39 +1,93 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ClerkProvider, SignedIn, SignedOut, SignInButton, UserButton, useAuth } from '@clerk/clerk-react'
+import { AuthProvider, SignIn, SignUp, ForgotPassword, SignOut, useAuth } from '@jacobuid/king-auth'
+import { Artwork, Brand, Icon, Player, Shell } from './ui'
+import { createApiClient } from './api-client.mjs'
+import { ProfilePicker, ProfilePortrait } from './ProfilePicker'
+import { PasswordGate } from './PasswordGate'
+import { SongManager } from './SongManager'
+import { YoutubeImporter } from './YoutubeImporter'
+import { ProfileCreatePage } from './ProfileCreatePage'
+import { AvatarGallery } from './AvatarGallery'
+import { ProfileMenu } from './ProfileMenu'
 import './style.css'
-
-const key = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-const api = import.meta.env.VITE_API_URL
-
+const api = import.meta.env.VITE_API_URL || ''
 function App() {
-  const { getToken } = useAuth()
-  const [profiles, setProfiles] = useState([])
-  const [profile, setProfile] = useState(null)
-  const [media, setMedia] = useState([])
-  const [selected, setSelected] = useState(null)
-  const [query, setQuery] = useState('')
-  const [error, setError] = useState('')
-  async function request(path, options = {}) {
-    const token = await getToken()
-    const response = await fetch(`${api}${path}`, { ...options, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers } })
-    if (!response.ok) throw new Error(`Request failed: ${response.status}`)
-    return response.json()
+  const { isSignedIn, isLoading, getToken, user } = useAuth()
+  const [ownAvatarOpen,setOwnAvatarOpen]=useState(false),[avatarSaving,setAvatarSaving]=useState(false),[avatarError,setAvatarError]=useState('')
+  const [editingProfile,setEditingProfile]=useState(null)
+  const [manageToken,setManageToken]=useState(''),[passwordAction,setPasswordAction]=useState('music:manage'),[passwordOpen,setPasswordOpen]=useState(false),[profileProof,setProfileProof]=useState('')
+  const [uploadStatus,setUploadStatus]=useState('')
+  const searchInput=useRef(null)
+  const generation=useRef(0)
+  const [authView,setAuthView]=useState('signin'), [profiles,setProfiles]=useState([]), [profile,setProfile]=useState(null), [token,setToken]=useState('')
+  const [pending,setPending]=useState(null), [pin,setPin]=useState(''), [error,setError]=useState(''), [busy,setBusy]=useState(false)
+  const [section,setSection]=useState('home'), [tracks,setTracks]=useState([]), [playlists,setPlaylists]=useState([]), [filter,setFilter]=useState(null), [query,setQuery]=useState('')
+  const [queue,setQueue]=useState([]), [current,setCurrent]=useState(null), [profileForm,setProfileForm]=useState(false)
+  const request = createApiClient({ baseUrl: api, getToken, getProfileToken: () => token, getManageToken: () => manageToken, requireBaseUrl: import.meta.env.PROD })
+  async function run(action){setError('');setBusy(true);try{await action()}catch(e){setError(e.message)}finally{setBusy(false)}}
+  function clear(){setOwnAvatarOpen(false);setAvatarError('');setEditingProfile(null);setManageToken('');setPasswordOpen(false);setProfileProof('');generation.current++;setProfile(null);setToken('');setTracks([]);setPlaylists([]);setCurrent(null);setQueue([]);setFilter(null);setSection('home');setPending(null);setPin('');setProfileForm(false)}
+  useEffect(()=>{clear();setProfiles([]);if(isSignedIn) run(async()=>setProfiles(await request('/api/profiles')))},[isSignedIn,user?.id])
+  useEffect(()=>{let cancelled=false;if(profile)run(async()=>{const [songs,lists]=await Promise.all([request('/api/library'),request('/api/playlists')]);if(!cancelled){setTracks(songs);setPlaylists(lists)}});return()=>{cancelled=true}},[profile,token])
+  async function unlock(e,enteredPin=pin){e?.preventDefault();await run(async()=>{const result=await request(`/api/profiles/${pending.id}/unlock`,{method:'POST',body:JSON.stringify({pin:enteredPin})});generation.current++;setToken(result.token);setProfile(pending);setSection('home');setPending(null);setPin('')})}
+  async function createProfile(e){e.preventDefault();const form=new FormData(e.currentTarget),values=Object.fromEntries(form);if(!values.avatar)delete values.avatar;await run(async()=>{const p=await request('/api/profiles',{method:'POST',headers:{'X-Reauthentication-Proof':profileProof},body:JSON.stringify(values)});setProfiles(v=>[...v,p]);setProfileForm(false);setProfileProof('')})}
+  async function changeOwnAvatar(avatar){
+    if(!profile||!token)return
+    setAvatarSaving(true);setAvatarError('')
+    try{const saved=await request(`/api/profiles/${profile.id}/avatar`,{method:'POST',body:JSON.stringify({avatar})});setProfile(p=>({...p,avatar:saved.avatar}));setProfiles(items=>items.map(p=>p.id===profile.id?{...p,avatar:saved.avatar}:p));setOwnAvatarOpen(false)}catch(error){setAvatarError(error.message)}finally{setAvatarSaving(false)}
   }
-  useEffect(() => { request('/api/profiles').then(setProfiles).catch(e => setError(e.message)) }, [])
-  useEffect(() => { if (profile) request('/api/library').then(setMedia).catch(e => setError(e.message)) }, [profile])
-  async function play(item) {
-    try {
-      const result = await request(`/api/media/${item.id}/play`, { method: 'POST', body: JSON.stringify({ profileId: profile.id }) })
-      setSelected({ ...item, ...result })
-    } catch (e) { setError(e.message) }
+  async function saveProfile(event){event.preventDefault();const values=Object.fromEntries(new FormData(event.currentTarget));await run(async()=>{const saved=await request(`/api/profiles/${editingProfile.id}`,{method:'POST',body:JSON.stringify(values)});const updated=profiles.map(p=>p.id===saved.id?{...p,...saved}:p);setProfiles(updated);setProfile(current=>current?.id===saved.id?(updated.find(p=>p.role==='adult')||current):current);setProfileForm(false);setEditingProfile(null)})}
+  async function play(items){if(!items.length)return;const version=generation.current;await run(async()=>{const result=await request(`/api/media/${items[0].id}/play`,{method:'POST',body:JSON.stringify({profileId:profile.id})});if(version===generation.current){setCurrent({...items[0],...result});setQueue(items.slice(1))}})}
+  const visible=(filter?.ids?tracks.filter(t=>filter.ids.includes(t.id)).sort((a,b)=>filter.ids.indexOf(a.id)-filter.ids.indexOf(b.id)):filter?.album?tracks.filter(t=>t.album===filter.album&&t.artist===filter.artist):tracks).filter(t=>`${t.title} ${t.artist} ${t.album}`.toLowerCase().includes(query.toLowerCase()))
+  const albums=[...new Map(tracks.filter(t=>t.album).map(t=>[`${t.artist}\0${t.album}`,t])).values()]
+  function navigate(next,search=false){if(next==='admin'&&!manageToken){setPasswordAction('music:manage');setPasswordOpen(true);return}setSection(next);setFilter(null);setQuery('');if(search)setTimeout(()=>searchInput.current?.focus(),0)}
+  function openAlbum(item){setFilter({album:item.album,artist:item.artist});setSection('library');setQuery('')}
+  async function openPlaylist(item){await run(async()=>{const rows=await request(`/api/playlists/${item.id}/tracks`);setFilter({name:item.name,playlistId:item.id,ids:rows.map(t=>t.id)});setSection('library');setQuery('')})}
+  function beginProfileManagement(intent) {
+    setError('');setPin('');
+    setPasswordAction(intent==='add'?'profile:create':'profiles:manage');setPasswordOpen(true)
   }
-  async function saveProgress(event) {
-    if (!selected || !profile || !Number.isFinite(event.target.currentTime)) return
-    try { await request('/api/progress', { method: 'POST', body: JSON.stringify({ profileId: profile.id, mediaId: selected.id, positionSeconds: Math.floor(event.target.currentTime) }) }) } catch (e) { setError(e.message) }
+  async function passwordVerified(result) {
+    if(passwordAction==='profile:create'){setEditingProfile(null);setProfileProof(result.proof);setPasswordOpen(false);setProfileForm(true);return}
+    const access=await request(passwordAction==='profiles:manage'?'/api/manage/profiles/unlock':'/api/manage/unlock',{method:'POST',headers:{'X-Reauthentication-Proof':result.proof},body:'{}'})
+    generation.current++;setToken('');setManageToken(access.token);setProfile(access.profile);setCurrent(null);setQueue([]);setSection(passwordAction==='profiles:manage'?'profiles':'admin');setPasswordOpen(false)
   }
-  async function addProfile() { const name = prompt('Profile name'); if (name?.trim()) try { const created = await request('/api/profiles', { method: 'POST', body: JSON.stringify({ name }) }); setProfiles([...profiles, created]) } catch(e) { setError(e.message) } }
-  return <main><header><h1>Media Library</h1><UserButton /></header>{error && <p role="alert">{error}</p>}{!profile ? <section><h2>Who's watching?</h2><div className="grid">{profiles.map(p => <button key={p.id} onClick={() => setProfile(p)}>{p.name}</button>)}<button onClick={addProfile}>Add profile</button></div></section> : <><nav><button onClick={() => { setProfile(null); setSelected(null) }}>Switch profile</button><span>{profile.name}</span></nav><input aria-label="Search movies" placeholder="Search movies" value={query} onChange={e => setQuery(e.target.value)} />{selected && <section><h2>{selected.title}</h2><video controls autoPlay src={selected.url} onPause={saveProgress} onEnded={saveProgress} onSeeked={saveProgress} /> <button onClick={() => setSelected(null)}>Close</button></section>}<section><h2>Library</h2><div className="grid">{media.filter(m => m.title.toLowerCase().includes(query.toLowerCase())).map(m => <button className="card" key={m.id} onClick={() => play(m)}>{m.thumbnailUrl && <img src={m.thumbnailUrl} alt="" />}<strong>{m.title}</strong><small>{m.category || 'Movie'}</small></button>)}</div>{!media.length && <p>No media yet. Add a movie to the catalog to begin.</p>}</section></>}</main>
-}
+  function passwordGate(){return <PasswordGate open={passwordOpen} action={passwordAction} onClose={()=>setPasswordOpen(false)} onVerified={passwordVerified}/>}
 
-createRoot(document.getElementById('root')).render(key && api ? <ClerkProvider publishableKey={key}><SignedOut><main><h1>Media Library</h1><SignInButton mode="modal"><button>Sign in</button></SignInButton></main></SignedOut><SignedIn><App /></SignedIn></ClerkProvider> : <main><h1>Media Library</h1><p>Set VITE_CLERK_PUBLISHABLE_KEY and VITE_API_URL to configure this app.</p></main>)
+  const albumCards=(limit)=> <div className="km-grid">{albums.slice(0,limit).map((t,i)=><button className="km-music-card" key={`${t.artist}\0${t.album}`} onClick={()=>openAlbum(t)}><Artwork item={t} index={i}/><strong>{t.album}</strong><small>{t.artist||'Unknown artist'}</small></button>)}</div>
+  const playlistCards=<div className="km-grid">{playlists.map((p,i)=><button className="km-music-card" key={p.id} onClick={()=>openPlaylist(p)}><Artwork index={i+1}/><strong>{p.name}</strong><small>Your playlist</small></button>)}</div>
+  if(isLoading)return <main className="km-gate"><Brand/><p role="status">Loading your music...</p></main>
+  if(!isSignedIn)return <main className={`km-gate km-auth km-auth--${authView}`}>
+    <section className={`km-auth-panel km-auth-panel--${authView}`} aria-labelledby="auth-heading">
+      <Brand/>
+      <header className="km-auth-heading">
+        <h1 id="auth-heading">{authView==='signin'?'Welcome Back':authView==='signup'?'Join King Music':'Forgot Password?'}</h1>
+        <p>{authView==='signin'?'Log in to your King Music account':authView==='signup'?'Your next favorite song is waiting.':'Let us get you back to your music.'}</p>
+      </header>
+      {authView==='signin'?<SignIn title={null} submitLabel={<><Icon name="play"/>Log In</>}/>:authView==='signup'?<SignUp title={null}/>:<ForgotPassword title={null}/>}
+      {authView==='signin'&&<button className="km-auth-forgot" onClick={()=>setAuthView('reset')}>Forgot Password?</button>}
+      <footer className="km-auth-footer">{authView==='signin'?<><span>Don’t have an account?</span><button onClick={()=>setAuthView('signup')}>Sign Up</button></>:<><span>Already have an account?</span><button onClick={()=>setAuthView('signin')}>Log In</button></>}</footer>
+    </section>
+  </main>
+  if(profileForm)return <ProfileCreatePage key={editingProfile?.id || 'new'} editingProfile={editingProfile} busy={busy} error={error} firstProfile={!profiles.length} onSubmit={editingProfile?saveProfile:createProfile} onCancel={()=>{setEditingProfile(null);setProfileForm(false);setProfileProof('');setError('')}}/>
+  if(!profile)return <ProfilePicker profiles={profiles} busy={busy} error={error} pending={pending} pin={pin} onPinChange={setPin} onUnlock={unlock} signOut={<SignOut/>}
+    onCancelUnlock={()=>{setPending(null);setPin('');setError('');}}
+    onSelectProfile={selected=>{;setPending(selected);setPin('');setError('')}}
+    onAdd={selected=>beginProfileManagement('add',selected)} onManage={selected=>beginProfileManagement('manage',selected)} onManageMusic={()=>{setPasswordAction('music:manage');setPasswordOpen(true)}}>
+    {passwordGate()}
+  </ProfilePicker>
+  return <><Shell profile={profile} section={section} onNavigate={navigate} onSwitch={clear}>
+    <div className="km-topbar"><span className="km-eyebrow">{section==='admin'?'ACCOUNT & CATALOG':'YOUR EVERYDAY SOUNDTRACK'}</span><ProfileMenu profile={profile} canChangePicture={!!token} onChangePicture={()=>{setAvatarError('');setOwnAvatarOpen(true)}} onManageMusic={()=>navigate('admin')} onSwitch={clear}/></div>
+    {error&&<p className="km-alert" role="alert">{error}</p>}
+    {section==='home'&&<><section className="km-hero"><div><p className="km-eyebrow">TURN UP YOUR DAY</p><h1>Welcome back, {profile.name}.</h1><p>Find your rhythm. Play something you love.</p><button className="km-btn--primary" disabled={busy||!tracks.length} onClick={()=>play(tracks)}><Icon name="play"/>Play your library</button></div></section><div className="km-shortcuts">{[['playlists','playlists','Playlists','Made by you'],['albums','albums','Albums','The complete experience'],['library','music','Your music','Every song, one place'],['library','search','Search','Find your next favorite']].map(([id,icon,title,subtitle],i)=><button className={`km-shortcut km-accent-${i}`} key={title} onClick={()=>navigate(id,icon==='search')}><Icon name={icon}/><strong>{title}</strong><small>{subtitle}</small></button>)}</div><section className="km-block"><div className="km-section-heading"><div><p className="km-eyebrow">LISTEN FROM START TO FINISH</p><h2>Your albums</h2></div><button className="km-text-button" onClick={()=>navigate('albums')}>View all</button></div>{albums.length?albumCards(4):<div className="km-empty"><Icon name="albums"/><h3>A home for your favorite albums</h3><p>{profile.role==='adult'?'Add your first songs in Admin to start your collection.':'Your music collection will appear here.'}</p></div>}</section><section className="km-block"><div className="km-section-heading"><div><p className="km-eyebrow">A MIX FOR EVERY MOMENT</p><h2>Your playlists</h2></div><button className="km-text-button" onClick={()=>navigate('playlists')}>Create a playlist</button></div>{playlists.length?playlistCards:<div className="km-empty km-empty--compact"><Icon name="playlists"/><div><h3>Your mood. Your mix.</h3><p>Create a playlist and fill it with songs you love.</p></div></div>}</section></>}
+    {section==='albums'&&<section className="km-block"><p className="km-eyebrow">THE WHOLE STORY</p><h1>Albums</h1><p className="km-muted">From the opening track to the final note.</p>{albums.length?albumCards():<div className="km-empty"><Icon name="albums"/><h3>No albums yet</h3><p>Albums appear when songs have an album name.</p></div>}</section>}
+    {section==='playlists'&&<section className="km-block"><p className="km-eyebrow">CURATED BY YOU</p><h1>Your playlists</h1><p className="km-muted">A soundtrack for whatever the day brings.</p><form className="km-playlist-form" onSubmit={e=>{e.preventDefault();const form=e.currentTarget,name=new FormData(form).get('name');run(async()=>{const p=await request('/api/playlists',{method:'POST',body:JSON.stringify({name})});setPlaylists(v=>[...v,p]);form.reset()})}}><label htmlFor="playlist-name">Create a playlist</label><div><input id="playlist-name" name="name" placeholder="Give your mix a name" maxLength={80} required/><button className="km-btn--primary" disabled={busy}><Icon name="plus"/>Create</button></div></form>{playlists.length?playlistCards:<div className="km-empty"><Icon name="playlists"/><h3>Start with a name. Make it yours.</h3><p>Add songs from your music library after creating a playlist.</p></div>}</section>}
+    {section==='library'&&<section className="km-block"><p className="km-eyebrow">PRESS PLAY. FEEL SOMETHING.</p><h1>{filter?.name||filter?.album||'Your music'}</h1><div className="km-library-toolbar"><label className="km-search"><Icon name="search"/><input ref={searchInput} aria-label="Search music" placeholder="Search songs, artists, albums" value={query} onChange={e=>setQuery(e.target.value)}/></label><button className="km-btn--primary" disabled={busy||!visible.length} onClick={()=>play(visible)}><Icon name="play"/>Play all</button>{filter&&<button onClick={()=>setFilter(null)}>All songs</button>}</div><div className="km-song-list"><div className="km-song-heading"><span>TRACK</span><span>ALBUM</span><span>PLAYLIST</span></div>{visible.map((t,i)=><article className="km-song" key={t.id}><button className="km-song-play" disabled={busy} onClick={()=>play(visible.slice(i))} aria-label={`Play ${t.title}`}><Artwork item={t} index={i}/><span><strong>{t.title}</strong><small>{t.artist||'Unknown artist'}</small></span><Icon name="play"/></button><span className="km-song-album">{t.album||'Single'}</span><select aria-label={`Add ${t.title} to playlist`} value="" disabled={busy||!playlists.length} onChange={e=>{const id=e.target.value;run(async()=>{await request(`/api/playlists/${id}/tracks`,{method:'POST',body:JSON.stringify({mediaId:t.id})});if(filter?.playlistId===id){const rows=await request(`/api/playlists/${id}/tracks`);setFilter({...filter,ids:rows.map(t=>t.id)})}})}}><option value="" disabled>{playlists.length?'Add to playlist':'No playlists yet'}</option>{playlists.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></article>)}</div>{!visible.length&&<div className="km-empty"><Icon name="music"/><h3>{query?'No matching songs':'Your soundtrack starts here'}</h3><p>{query?'Try another song, artist, or album.':filter?.ids?'Add songs to this playlist from Your music.':'Songs in your collection will appear here.'}</p></div>}</section>}
+    {section==='profiles'&&profile.role==='adult'&&<section className="km-block"><h1>Manage Profiles</h1><p className="km-muted">Choose the profile you want to edit.</p><div className="km-profile-grid km-profile-manage-grid">{profiles.map((p,index)=><button className="km-profile-card" key={p.id} onClick={()=>{setError('');setEditingProfile(p);setProfileForm(true)}}><span className="km-profile-art"><ProfilePortrait profile={p} index={index}/></span><strong>{p.name}</strong><small>{p.role==='adult'?'Adult':'Kids'}</small></button>)}<button className="km-profile-card km-profile-add" onClick={()=>beginProfileManagement('add')}><span className="km-profile-art"><Icon name="plus"/></span><strong>Add Profile</strong></button></div></section>}
+    {section==='admin'&&profile.role==='adult'&&<section className="km-block km-manage-music"><header className="km-manage-heading"><p className="km-eyebrow">MAKE YOURSELF AT HOME</p><h1>Manage Music</h1><p className="km-muted">Manage music shared by every profile on your account.</p></header><YoutubeImporter request={request} onImported={async()=>{setTracks(await request('/api/library'));setPlaylists(await request('/api/playlists'))}}/><SongManager songs={tracks} request={request} onSaved={async()=>setTracks(await request('/api/library'))}/><div className="km-admin-grid"><section className="km-panel"><h2>Upload a song</h2><p className="km-muted">Add audio to your private music collection.</p><form onSubmit={e=>{e.preventDefault();const form=e.currentTarget,data=new FormData(form),file=data.get('file');run(async()=>{setUploadStatus('Preparing upload...');try{if(!(file instanceof File)||!file.size)throw new Error('Choose an audio file.');const upload=await request('/api/admin/uploads',{method:'POST',body:JSON.stringify({title:data.get('title'),artist:data.get('artist'),album:data.get('album'),trackNumber:Number(data.get('trackNumber')),kidsAllowed:data.has('kidsAllowed'),filename:file.name,size:file.size})});setUploadStatus('Uploading song...');const response=await fetch(upload.url,{method:'PUT',headers:upload.headers,body:file});if(!response.ok)throw new Error('The song could not be uploaded. Try again.');setUploadStatus('Saving to your library...');await request(`/api/admin/uploads/${upload.id}/complete`,{method:'POST',body:'{}'});setTracks(await request('/api/library'));form.reset();setUploadStatus('Song added to your library.')}catch(error){setUploadStatus('');throw error}})}}><fieldset className="km-upload-fields" disabled={busy}><label>Audio file<input name="file" type="file" accept=".mp3,.m4a,.aac,.flac,.ogg,.opus,.wav" required/></label><small>MP3, M4A, AAC, FLAC, OGG, OPUS, or WAV. Up to 100 MiB.</small>{[['title','Song title'],['artist','Artist'],['album','Album']].map(([name,label])=><label key={name}>{label}<input name={name} maxLength={200} required={name==='title'}/></label>)}<label>Track number<input name="trackNumber" type="number" min="0" defaultValue="1" required/></label><label className="km-checkbox"><input type="checkbox" name="kidsAllowed"/>Available to kids</label><button className="km-btn--primary" disabled={busy}><Icon name="plus"/>{busy?'Uploading...':'Upload song'}</button></fieldset><p role="status" aria-live="polite">{uploadStatus}</p></form></section></div></section>}
+  </Shell><Player current={current} onNext={()=>{if(queue.length)play(queue);else setCurrent(null)}} hasNext={queue.length>0} busy={busy} onStop={()=>{setCurrent(null);setQueue([])}}/>{passwordGate()}<AvatarGallery open={ownAvatarOpen} value={profile.avatar || (profile.role==='kids'?'penguin':'ember')} busy={avatarSaving} error={avatarError} onClose={()=>setOwnAvatarOpen(false)} onSelect={changeOwnAvatar}/></>
+}
+createRoot(document.getElementById('root')).render(<AuthProvider><App/></AuthProvider>)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(console.error))
+}

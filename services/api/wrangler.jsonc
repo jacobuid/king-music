@@ -1,17 +1,20 @@
 {
-  "name": "media-api",
+  "name": "king-music-api",
   "main": "src/index.ts",
   "compatibility_date": "2025-01-01",
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "media-prod",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_name": "king-music-prod",
+      "database_id": "35886dd6-3601-45bf-afe2-87de18c91837",
       "migrations_dir": "migrations"
     }
   ],
   "vars": {
-    "WEB_ORIGIN": "https://example.github.io",
-    "B2_BUCKET": "replace-with-generated-bucket"
-  }
+    "WEB_ORIGIN": "https://jacobuid.github.io",
+    "B2_BUCKET": "jacobuid-king-music",
+    "B2_ENDPOINT": "https://s3.us-east-005.backblazeb2.com",
+    "WEB_ORIGINS": "https://jacobuid.github.io,http://localhost:5173"
+  },
+  "account_id": "32097cf71a4dc22f666dc6cf4bac21ab"
 }
