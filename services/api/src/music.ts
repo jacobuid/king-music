@@ -1,3 +1,5 @@
+import { playlistOrderRoute } from './playlist-order'
+import { albumManagementRoute } from './album-management'
 import { accountPlaylists } from './playlist-list'
 import { playlistCoverRoutes } from './playlist-covers'
 import type { Env } from './index'
@@ -6,6 +8,8 @@ export async function musicRoutes(request: Request, env: Env, profile: {id:strin
   const path = new URL(request.url).pathname
   const coverResponse=await playlistCoverRoutes(request,env,profile)
   if(coverResponse)return coverResponse
+  const orderResponse=await playlistOrderRoute(request,env,profile)
+  if(orderResponse)return orderResponse
   if(path==='/api/playlists'&&request.method==='GET')return json(await accountPlaylists(env,profile))
   if (path === '/api/playlists' && request.method === 'POST') {
     const body = await request.json() as {name?:string}
@@ -53,6 +57,8 @@ export async function musicRoutes(request: Request, env: Env, profile: {id:strin
       return json({ok:true})
     }
   }
+  const albumResponse=await albumManagementRoute(request,env,profile)
+  if(albumResponse)return albumResponse
   if(path==='/api/admin/catalog/bulk' && request.method==='POST') {
     if(profile.role!=='adult')return json({error:'Adult profile required'},403)
     const b=await request.json() as {ids?:unknown;kidsAllowed?:unknown}
@@ -64,9 +70,12 @@ export async function musicRoutes(request: Request, env: Env, profile: {id:strin
   const edit = path.match(/^\/api\/admin\/catalog\/([^/]+)$/)
   if(edit && request.method==='POST') {
     if(profile.role!=='adult')return json({error:'Adult profile required'},403)
-    const b=await request.json() as {title?:string;artist?:string;album?:string;trackNumber?:number;kidsAllowed?:boolean}
+    const b=await request.json() as {title?:string;artist?:string;album?:string;trackNumber?:number;kidsAllowed?:boolean;coverSongId?:string}
     if(typeof b.title!=='string'||!b.title.trim()||b.title.length>200||typeof b.artist!=='string'||b.artist.length>200||typeof b.album!=='string'||b.album.length>200||!Number.isSafeInteger(b.trackNumber)||b.trackNumber!<0||typeof b.kidsAllowed!=='boolean')return json({error:'Enter valid song details and kids availability'},400)
-    const song=await env.DB.prepare('UPDATE media SET title=?,artist=?,album=?,track_number=?,kids_allowed=? WHERE id=? AND user_id=? RETURNING id').bind(b.title.trim(),b.artist.trim(),b.album.trim(),b.trackNumber,b.kidsAllowed?1:0,edit[1],profile.user_id).first()
+    if(b.coverSongId!==undefined&&typeof b.coverSongId!=='string')return json({error:'Choose valid artwork'},400)
+    const cover=b.coverSongId?await env.DB.prepare('SELECT thumbnail_key,thumbnail_url FROM media WHERE id=? AND user_id=?').bind(b.coverSongId,profile.user_id).first<{thumbnail_key:string|null;thumbnail_url:string|null}>():null
+    if(b.coverSongId&&(!cover||(!cover.thumbnail_key&&!cover.thumbnail_url)))return json({error:'Choose available artwork from your library.'},400)
+    const song=await env.DB.prepare('UPDATE media SET title=?,artist=?,album=?,track_number=?,kids_allowed=?,thumbnail_key=CASE WHEN ? THEN ? ELSE thumbnail_key END,thumbnail_url=CASE WHEN ? THEN ? ELSE thumbnail_url END WHERE id=? AND user_id=? RETURNING id').bind(b.title.trim(),b.artist.trim(),b.album.trim(),b.trackNumber,b.kidsAllowed?1:0,cover?1:0,cover?.thumbnail_key||null,cover?1:0,cover?.thumbnail_url||null,edit[1],profile.user_id).first()
     if(!song)return json({error:'Song not found'},404)
     return json({ok:true})
   }

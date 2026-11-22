@@ -42,3 +42,16 @@ test('restricted songs cannot appear in kids playlist collages',async()=>{
  await played(env,'restricted');await played(env,'restricted')
  const kids=await(await worker.fetch(req('/api/playlists',{profile:'kid'}),env)).json();assert.deepEqual(kids.find(item=>item.id===list.id).coverSongs.map(song=>song.id),['safe']);db.close()
 })
+
+test('playlist collage picks four distinct albums before limiting results to four slots',async()=>{
+ const {db,env}=setup();seed(db);const list=await create(env)
+ for(let index=0;index<7;index++){
+ const id='album-song-'+index,album=index<4?'Repeated album':'Album '+index
+ db.prepare('INSERT INTO media(id,user_id,title,artist,album,video_key,kids_allowed) VALUES(?,?,?,?,?,?,1)').run(id,'u1',id,'Artist',album,'music/'+id+'.m4a')
+ await worker.fetch(req(`/api/playlists/${list.id}/tracks`,{body:{mediaId:id}}),env)
+ db.prepare('INSERT INTO profile_song_history(profile_id,media_id,last_played_at,play_count) VALUES(?,?,?,?)').run('adult',id,1,20-index)
+ }
+ const cover=(await(await worker.fetch(req('/api/playlists'),env)).json()).find(item=>item.id===list.id).coverSongs
+ assert.equal(cover.length,4);assert.deepEqual(cover.map(song=>song.id),['album-song-0','album-song-4','album-song-5','album-song-6']);assert.equal(new Set(cover.map(song=>song.album)).size,4)
+ db.close()
+})

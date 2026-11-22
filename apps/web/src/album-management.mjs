@@ -1,0 +1,3 @@
+export const albumKey=song=>JSON.stringify([song.album||'',song.artist||''])
+export function managedAlbums(songs){const groups=new Map();for(const song of songs){const key=albumKey(song);if(!groups.has(key))groups.set(key,{key,album:song.album||'',artist:song.artist||'',songs:[]});groups.get(key).songs.push(song)}return [...groups.values()].sort((a,b)=>a.album.localeCompare(b.album)||a.artist.localeCompare(b.artist))}
+export function coverChoices(songs){const seen=new Set();return songs.filter(song=>{if(!song.thumbnailUrl||seen.has(song.thumbnailUrl))return false;seen.add(song.thumbnailUrl);return true})}

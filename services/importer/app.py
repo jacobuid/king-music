@@ -221,6 +221,14 @@ def enqueue(job: Job):
 
 def callback(job, method="GET", data=None, suffix=""):
     response = requests.request(method, job.callbackUrl + suffix, headers={"Authorization": f"Bearer {os.environ['MUSIC_SERVICE_TOKEN']}"}, json=data, timeout=30)
+    if not response.ok:
+        # Log only known validation messages, never arbitrary response text or credentials.
+        try:
+            detail = response.json().get("error")
+        except (ValueError, AttributeError):
+            detail = None
+        allowed = {"Audio upload is missing or invalid", "Artwork or lyrics data is invalid", "Song is not ready", "Artwork upload is missing or invalid"}
+        logging.warning("Import callback rejected: status=%s reason=%s", response.status_code, detail if detail in allowed else "request rejected")
     response.raise_for_status()
     return response.json()
 

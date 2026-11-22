@@ -7,7 +7,7 @@ function PlayerIcon({name}) {
   return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>
 }
 export function Player({current,onNext,hasNext,onPrevious,hasPrevious,busy,onStop,playlists=[],onSave,queue=[],onPlayQueue,onRemove,onMove,onShuffle,onActivity,onPlayingChange,queueError,autoPlay=true,onPlaybackStart}) {
-  const audio=useRef(null),drawer=useRef(null),trigger=useRef(null),drag=useRef(null),lastAudioTime=useRef(0)
+  const audio=useRef(null),drawer=useRef(null),trigger=useRef(null),drag=useRef(null),lastAudioTime=useRef(0),lyricsPanel=useRef(null)
   const [view,setView]=useState('playing')
   const [expanded,setExpanded]=useState(false),[playing,setPlaying]=useState(false),[position,setPosition]=useState(0),[duration,setDuration]=useState(0),[volume,setVolume]=useState(1),[error,setError]=useState(''),[repeat,setRepeat]=useState(false),[saving,setSaving]=useState(false),[saved,setSaved]=useState(''),[canCast,setCanCast]=useState(false)
   useEffect(()=>{const close=()=>setExpanded(false);window.addEventListener('popstate',close);return()=>window.removeEventListener('popstate',close)},[])
@@ -49,6 +49,17 @@ export function Player({current,onNext,hasNext,onPrevious,hasPrevious,busy,onSto
   }
   const lyricLines=parseLrc(current?.syncedLyrics)
   const lyricIndex=lyricLines.findLastIndex(line=>line.time<=position)
+  useEffect(()=>{
+    if(!expanded||view!=='lyrics'||lyricIndex<0)return
+    const frame=requestAnimationFrame(()=>{
+      const panel=lyricsPanel.current,line=panel?.querySelector('[aria-current="true"]')
+      if(!line)return
+      const panelBounds=panel.getBoundingClientRect(),lineBounds=line.getBoundingClientRect()
+      const top=panel.scrollTop+lineBounds.top-panelBounds.top-panel.clientTop-(panel.clientHeight-lineBounds.height)/2
+      panel.scrollTo({top:Math.max(0,top),behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'})
+    })
+    return()=>cancelAnimationFrame(frame)
+  },[expanded,view,lyricIndex,current?.queueId,current?.url,current?.syncedLyrics])
   if(!current)return null
   const playButton=<button className="km-play-button" aria-label={playing?'Pause':'Play'} disabled={!current?.url||busy} onClick={toggle}><Icon name={playing?'pause':'play'}/></button>
   return <>
@@ -65,7 +76,7 @@ export function Player({current,onNext,hasNext,onPrevious,hasPrevious,busy,onSto
         <div className="km-now-playing-volume"><Icon name="volume"/><input aria-label="Volume" type="range" min="0" max="1" step="0.01" value={volume} onChange={e=>{const v=Number(e.target.value);setVolume(v);if(audio.current)audio.current.volume=v}}/>{current&&<button type="button" onClick={onStop}>Stop</button>}</div>
         {(error||queueError||saved)&&<p className="km-player-message" role="status">{error||queueError||saved}</p>}
       </div></div>
-      <section id="player-view-lyrics" hidden={view!=='lyrics'} className="km-player-view km-player-lyrics" aria-label="Lyrics"><h2>Lyrics</h2><p className="km-muted">{current.title}</p>{lyricLines.length?<div className="km-player-synced-lyrics">{lyricLines.map((line,index)=><button type="button" key={`${line.time}-${index}`} aria-current={index===lyricIndex?'true':undefined} onClick={()=>seek(line.time)} disabled={!current.url}>{line.text}</button>)}</div>:current.lyrics?<p className="km-player-lyrics-text">{current.lyrics}</p>:<p>{current.lyricsStatus==='instrumental'?'This is an instrumental track.':current.lyricsStatus==='failed'?'Lyrics could not be retrieved. You can retry from Manage Music.':"Lyrics aren't available for this song yet."}</p>}{current.lyricsSource&&<p className="km-lyrics-attribution">Lyrics: {current.lyricsSourceUrl?<a href={current.lyricsSourceUrl} target="_blank" rel="noreferrer">{current.lyricsSource}</a>:current.lyricsSource}</p>}</section>
+      <section ref={lyricsPanel} id="player-view-lyrics" hidden={view!=='lyrics'} className="km-player-view km-player-lyrics" aria-label="Lyrics"><h2>Lyrics</h2><p className="km-muted">{current.title}</p>{lyricLines.length?<div className="km-player-synced-lyrics">{lyricLines.map((line,index)=><button type="button" key={`${line.time}-${index}`} aria-current={index===lyricIndex?'true':undefined} onClick={()=>seek(line.time)} disabled={!current.url}>{line.text}</button>)}</div>:current.lyrics?<p className="km-player-lyrics-text">{current.lyrics}</p>:<p>{current.lyricsStatus==='instrumental'?'This is an instrumental track.':current.lyricsStatus==='failed'?'Lyrics could not be retrieved. You can retry from Manage Music.':"Lyrics aren't available for this song yet."}</p>}{current.lyricsSource&&<p className="km-lyrics-attribution">Lyrics: {current.lyricsSourceUrl?<a href={current.lyricsSourceUrl} target="_blank" rel="noreferrer">{current.lyricsSource}</a>:current.lyricsSource}</p>}</section>
       <section id="player-view-queue" hidden={view!=='queue'} className="km-player-view" aria-label="Queue"><div className="km-queue-heading"><h2>Queue <small>{queue.length} {queue.length===1?'song':'songs'}</small></h2><button type="button" disabled={queue.length<3} onClick={onShuffle}><PlayerIcon name="shuffle"/>Shuffle</button><button type="button" onClick={onStop}>Clear queue</button></div><p className="km-muted">Drag the handles to reorder upcoming songs, or use the arrow buttons.</p><ol className="km-player-queue">{queue.map((song,index)=><li key={song.queueId} data-queue-id={song.queueId} className={index===0?'is-current':''}>
         {index>0?<button type="button" className="km-queue-drag km-icon-button" aria-label={`Reorder ${song.title}`} onPointerDown={event=>startDrag(event,song)} onPointerUp={finishDrag} onPointerCancel={()=>{drag.current=null}} onKeyDown={event=>{if(event.key==='ArrowUp'||event.key==='ArrowDown'){event.preventDefault();const target=queue[index+(event.key==='ArrowUp'?-1:1)];if(target)onMove?.(song.queueId,target.queueId)}}}><Icon name="menu"/></button>:<span className="km-queue-current-icon"><Icon name="music"/></span>}
         <button type="button" className="km-queue-song" disabled={busy||index===0} aria-label={index===0?`Now playing ${song.title}`:`Play ${song.title}`} onClick={()=>onPlayQueue?.(song.queueId)}><Artwork item={song}/><span><strong>{song.title}</strong><small>{index===0?'Now playing · ':''}{song.artist}</small></span></button>

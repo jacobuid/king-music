@@ -11,6 +11,8 @@ export function Icon({ name, ...props }) {
     settings: 'm9 3-1 3-3 1-2 3 2 2v3l3 2 1 4h6l1-4 3-2v-3l2-2-2-3-3-1-1-3Zm7 9a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
     home: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z',
     music: 'M9 18V5l12-2v13M9 8l12-2M9 18c0 2-6 4-6 1s6-4 6-1Zm12-2c0 2-6 4-6 1s6-4 6-1Z',
+    'chevron-up':'m6 15 6-6 6 6',
+    'chevron-down':'m6 9 6 6 6-6',
     albums: 'm12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 16l10 5 10-5',
     playlists: 'M3 5h12M3 10h12M3 15h7m7-3v8m-4-4h8',
     search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
