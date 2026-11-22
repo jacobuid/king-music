@@ -7,7 +7,7 @@ const transpile = name => ts.transpileModule(readFileSync(new URL(`../src/${name
 const uri = text => `data:text/javascript;base64,${Buffer.from(text).toString('base64')}`
 const storageUri=uri(transpile('storage').replace("'aws4fetch'",JSON.stringify(import.meta.resolve('aws4fetch'))))
 const { uploadRoutes } = await import(uri(transpile('uploads').replace("'./storage'",JSON.stringify(storageUri))))
-const {uploadUrl,playbackUrl}=await import(storageUri)
+const {uploadUrl,playbackUrl,downloadUrl}=await import(storageUri)
 const request=(path,body={})=>new Request(`https://music.test${path}`,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'application/json'}})
 function setup(){
  const db=new DatabaseSync(':memory:');for(const file of readdirSync(new URL('../migrations/',import.meta.url)).sort())db.exec(readFileSync(new URL(`../migrations/${file}`,import.meta.url),'utf8'))
@@ -45,4 +45,10 @@ test('B2 signatures scope uploads to a music object and content type',async()=>{
  assert.equal(url.pathname,'/test-music/music/song.mp3');assert.equal(url.searchParams.get('X-Amz-Expires'),'900');assert.match(url.searchParams.get('X-Amz-SignedHeaders'),/content-type/)
  const play=new URL(await playbackUrl(env,'music/song.mp3'));assert.equal(play.searchParams.get('X-Amz-Expires'),'3600')
  await assert.rejects(uploadUrl(env,'other/song.mp3','audio/mpeg'),/Invalid music storage key/)
+})
+
+test('download signatures include an attachment filename and a short expiry',async()=>{
+ const env={B2_ENDPOINT:'https://s3.us-west-004.backblazeb2.com',B2_BUCKET:'test-music',B2_KEY_ID:'test-key',B2_APPLICATION_KEY:'test-secret'}
+ const url=new URL(await downloadUrl(env,'music/song.m4a','A "Song".m4a'))
+ assert.equal(url.searchParams.get('X-Amz-Expires'),'900');assert.match(url.searchParams.get('response-content-disposition'),/^attachment; filename=/);assert.ok(url.searchParams.get('X-Amz-Signature'));assert.doesNotMatch(url.searchParams.get('response-content-disposition'),/filename="A "Song"/)
 })

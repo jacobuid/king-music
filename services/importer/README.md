@@ -17,3 +17,15 @@ The importer uses the owner-authorized `king-sports-youtube-cookies` Google Secr
 `PYTHONPATH=services/importer python -m unittest discover -s services/importer/tests -v`
 
 Tests mock external services and send no production requests. A successful deployment/search does not establish that YouTube downloads work from Cloud Run; test an actual permitted source after deploying. yt-dlp can encounter source availability or verification errors, which appear as failed jobs.
+
+## Stored artwork and lyrics
+
+New YouTube imports retain M4A/AAC audio in B2. The importer tries the original artwork URL, fresh source thumbnails, and YouTube image CDN fallbacks; it downloads, validates and converts the selected image into a bounded JPEG, then uploads it to `music/<media-id>/cover.jpg` in B2. The Worker checks object type/size before saving `media.thumbnail_key`. The external URL is retained only as a source reference.
+
+Lyrics are stored as text in D1's `song_enrichment` table, including plain text, timed LRC text, source/attribution URL, duration, and separate artwork/lyrics statuses. LRCLIB is queried with track, artist, album and duration; mismatched results are rejected. YouTube Music's video-specific lyrics are the fallback. Missing or failed lyrics and missing artwork do not prevent the M4A import from completing.
+
+Manage Music → **Repair artwork & lyrics** queues up to 25 existing imported songs per click. Repairs use the existing durable Cloud Tasks queue and never re-download or overwrite the audio. Pending repairs are not queued twice; jobs abandoned for two hours can be queued again. Run repair again to cover additional songs or retry missing sources. This repair currently targets songs imported through YouTube, which have an import-job/source reference.
+
+Deployment requires D1 migration `0013_song_enrichment.sql`, the updated API Worker, the updated Cloud Run image (which now includes `enrichment.py`), and the updated web app. Apply the migration before deploying the updated Worker. No production migration, backfill or deployment is performed by a local build.
+
+Provider references: https://lrclib.net/docs and https://ytmusicapi.readthedocs.io/en/stable/reference/browsing.html

@@ -1,4 +1,4 @@
-﻿import {test} from 'node:test'
+import {test} from 'node:test'
 import assert from 'node:assert/strict'
 import {worker,setup,seed,req} from './helpers.mjs'
 Error.stackTraceLimit=1
@@ -26,7 +26,7 @@ test('playlist imports reuse account songs and preserve source order despite out
  for(const job of jobs){const r=await worker.fetch(internal(job.id,{status:'ready',title:job.title,artist:'Artist',album:'Album',duration:120}),env);assert.equal(r.status,200)}
  const ids=await(await worker.fetch(req(`/api/playlists/${data.playlistId}/tracks`),env)).json();const titles=ids.map(({id})=>db.prepare('SELECT title FROM media WHERE id=?').get(id).title);assert.deepEqual(titles,['Safe','Second','Third'])
  const repeat=await worker.fetch(req('/api/admin/imports/song',{profile:'other-adult',manage:'manager',body:tracks[1]}),env);assert.equal((await repeat.json()).reused,1)
- assert.equal((await worker.fetch(req(`/api/playlists/${data.playlistId}/tracks`,{profile:'kid'}),env)).status,404)
+ assert.equal((await worker.fetch(req(`/api/playlists/${data.playlistId}/tracks`,{profile:'kid'}),env)).status,200)
  assert.equal(db.prepare('SELECT user_id FROM media WHERE id=?').get(jobs[0].id).user_id,'u1');db.close()})
 test('100-song playlists queue in a batch and failed jobs can retry at the daily quota',async t=>{const{db,env}=setup();seed(db);const tracks=Array.from({length:100},(_,n)=>song('v'+String(n).padStart(10,'0'),'Song '+n));const calls=source(t,tracks)
  const response=await worker.fetch(req('/api/admin/imports/playlist',{manage:'manager',body:{url:'PLabcdefghijk'}}),env);assert.equal(response.status,202);assert.equal((await response.json()).queued,100);assert.equal(calls.find(c=>c.url.endsWith('/jobs/batch')).body.jobs.length,100)

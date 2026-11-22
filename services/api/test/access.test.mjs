@@ -6,7 +6,7 @@ import ts from 'typescript'
 const authStub = 'data:text/javascript;base64,'+Buffer.from("export const verifyPassword=async(request,env,action)=>request.headers.get('X-Test-Password-Proof')===action").toString('base64')
 const load = async name => import(`data:text/javascript;base64,${Buffer.from(ts.transpileModule(readFileSync(new URL(`../src/${name}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText.replace("'./auth'",JSON.stringify(authStub)).replace("'./management'",JSON.stringify("data:text/javascript,export%20const%20managementAccess%3Dasync()%3D%3Enull"))).toString('base64')}`)
 const { profileRoutes, profileAccess } = await load('profiles')
-const { musicRoutes } = await load('music')
+const { musicRoutes } = await import('./helpers.mjs')
 function setup(){
   const db=new DatabaseSync(':memory:')
   for(const file of readdirSync(new URL('../migrations/',import.meta.url)).sort())db.exec(readFileSync(new URL(`../migrations/${file}`,import.meta.url),'utf8'))
@@ -40,7 +40,7 @@ test('profile ownership, password-gated creation, PIN lockout and expiry',async(
  assert.equal(await profileAccess(req('/api/library',null,token),env,'u1'),null)
  db.close()
 })
-test('playlists isolate profiles and deny restricted tracks to kids',async()=>{
+test('playlists are shared within the account and deny restricted tracks to kids',async()=>{
  const {db,env}=setup()
  db.exec("INSERT INTO profiles(id,user_id,name,role) VALUES('adult','u','Parent','adult'),('kid','u','Child','kids'); INSERT INTO media(id,title,video_key,kids_allowed,user_id) VALUES('safe','Safe','music/safe.mp3',1,'u'),('restricted','Restricted','music/restricted.mp3',0,'u')")
  const adult={id:'adult',role:'adult',user_id:'u'},kid={id:'kid',role:'kids',user_id:'u'}
@@ -48,7 +48,7 @@ test('playlists isolate profiles and deny restricted tracks to kids',async()=>{
  const playlist=await (await musicRoutes(req('/api/playlists',{name:'Favorites'}),env,kid)).json()
  assert.equal((await musicRoutes(req(`/api/playlists/${playlist.id}/tracks`,{mediaId:'safe'}),env,kid)).status,200)
  assert.equal((await musicRoutes(req(`/api/playlists/${playlist.id}/tracks`,{mediaId:'restricted'}),env,kid)).status,404)
- assert.equal((await musicRoutes(req(`/api/playlists/${playlist.id}/tracks`),env,adult)).status,404)
+ assert.equal((await musicRoutes(req(`/api/playlists/${playlist.id}/tracks`),env,adult)).status,200)
  assert.deepEqual(await (await musicRoutes(req(`/api/playlists/${playlist.id}/tracks`),env,kid)).json(),[{id:'safe'}])
  db.close()
 })

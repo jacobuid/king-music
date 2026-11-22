@@ -27,3 +27,13 @@ export async function inspectObject(env: Env, key: string) {
   if (!response.ok) throw new Error('Unable to verify the uploaded B2 object')
   return { size: Number(response.headers.get('Content-Length')), mime: response.headers.get('Content-Type')?.split(';')[0].trim() }
 }
+
+export async function downloadUrl(env: Env, key: string, filename: string) {
+  const { endpoint, client } = storage(env)
+  const url = new URL(objectUrl(endpoint,env,key))
+  const safe = filename.replace(/[\r\n"\\]/g,'_').slice(0,180)
+  const ascii = safe.replace(/[^\x20-\x7e]/g,'_') || 'song.m4a'
+  url.searchParams.set('X-Amz-Expires','900')
+  url.searchParams.set('response-content-disposition',`attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(safe)}`)
+  return (await client.sign(url.href,{aws:{signQuery:true}})).url
+}

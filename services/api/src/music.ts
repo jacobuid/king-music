@@ -1,19 +1,52 @@
+import { accountPlaylists } from './playlist-list'
+import { playlistCoverRoutes } from './playlist-covers'
 import type { Env } from './index'
 const json = (data: unknown, status=200) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})
 export async function musicRoutes(request: Request, env: Env, profile: {id:string;role:string;user_id:string}): Promise<Response|null> {
   const path = new URL(request.url).pathname
-  if (path === '/api/playlists' && request.method === 'GET') return json((await env.DB.prepare('SELECT id,name FROM playlists WHERE profile_id=? ORDER BY created_at').bind(profile.id).all()).results)
+  const coverResponse=await playlistCoverRoutes(request,env,profile)
+  if(coverResponse)return coverResponse
+  if(path==='/api/playlists'&&request.method==='GET')return json(await accountPlaylists(env,profile))
   if (path === '/api/playlists' && request.method === 'POST') {
     const body = await request.json() as {name?:string}
     if (typeof body.name !== 'string' || !body.name.trim() || body.name.length>80) return json({error:'Enter a playlist name (up to 80 characters)'},400)
     const id=crypto.randomUUID(); await env.DB.prepare('INSERT INTO playlists(id,profile_id,name) VALUES(?,?,?)').bind(id,profile.id,body.name.trim()).run()
-    return json({id,name:body.name.trim()},201)
+    const owner=await env.DB.prepare('SELECT name FROM profiles WHERE id=?').bind(profile.id).first<{name:string}>();return json({id,name:body.name.trim(),creatorId:profile.id,creatorName:owner?.name||'',canEdit:true},201)
+  }
+  const playlistMatch=path.match(/^\/api\/playlists\/([^/]+)$/)
+  if(playlistMatch && ['POST','DELETE'].includes(request.method)) {
+    const target=await env.DB.prepare('SELECT p.profile_id AS creatorId FROM playlists p JOIN profiles owner ON owner.id=p.profile_id WHERE p.id=? AND owner.user_id=?').bind(playlistMatch[1],profile.user_id).first<{creatorId:string}>()
+    if(!target)return json({error:'Playlist not found'},404)
+    if(profile.role!=='adult'&&target.creatorId!==profile.id)return json({error:'Only adults or the playlist creator can edit this playlist'},403)
+    if(request.method==='DELETE'){
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM playlist_cover_uploads WHERE playlist_id=?').bind(playlistMatch[1]),
+        env.DB.prepare('DELETE FROM import_playlist_tracks WHERE playlist_id=?').bind(playlistMatch[1]),
+        env.DB.prepare('DELETE FROM playlist_tracks WHERE playlist_id=?').bind(playlistMatch[1]),
+        env.DB.prepare('DELETE FROM playlists WHERE id=?').bind(playlistMatch[1])
+      ])
+      return json({ok:true})
+    }
+    const body=await request.json() as {name?:string}
+    if(typeof body.name!=='string'||!body.name.trim()||body.name.length>80)return json({error:'Enter a playlist name (up to 80 characters)'},400)
+    await env.DB.prepare('UPDATE playlists SET name=? WHERE id=?').bind(body.name.trim(),playlistMatch[1]).run()
+    return json({ok:true,name:body.name.trim()})
+  }
+  const removeMatch=path.match(/^\/api\/playlists\/([^/]+)\/tracks\/([^/]+)$/)
+  if(removeMatch&&request.method==='DELETE'){
+    const target=await env.DB.prepare('SELECT p.profile_id AS creatorId FROM playlists p JOIN profiles owner ON owner.id=p.profile_id WHERE p.id=? AND owner.user_id=?').bind(removeMatch[1],profile.user_id).first<{creatorId:string}>()
+    if(!target)return json({error:'Playlist not found'},404)
+    if(profile.role!=='adult'&&target.creatorId!==profile.id)return json({error:'Only adults or the playlist creator can edit this playlist'},403)
+    await env.DB.prepare('DELETE FROM playlist_tracks WHERE playlist_id=? AND media_id=?').bind(removeMatch[1],removeMatch[2]).run()
+    return json({ok:true})
   }
   const match=path.match(/^\/api\/playlists\/([^/]+)\/tracks$/)
   if (match) {
-    if (!await env.DB.prepare('SELECT id FROM playlists WHERE id=? AND profile_id=?').bind(match[1],profile.id).first()) return json({error:'Playlist not found'},404)
+    const target=await env.DB.prepare('SELECT p.profile_id AS creatorId FROM playlists p JOIN profiles owner ON owner.id=p.profile_id WHERE p.id=? AND owner.user_id=?').bind(match[1],profile.user_id).first<{creatorId:string}>()
+    if(!target)return json({error:'Playlist not found'},404)
     if(request.method==='GET') return json((await env.DB.prepare('SELECT m.id FROM playlist_tracks t JOIN media m ON m.id=t.media_id WHERE t.playlist_id=? AND m.user_id=? AND (?=1 OR m.kids_allowed=1) ORDER BY t.position').bind(match[1],profile.user_id,profile.role==='adult'?1:0).all()).results)
     if(request.method==='POST') {
+      if(profile.role!=='adult'&&target.creatorId!==profile.id)return json({error:'Only adults or the playlist creator can edit this playlist'},403)
       const body=await request.json() as {mediaId?:string}
       if(typeof body.mediaId!=='string' || !await env.DB.prepare('SELECT id FROM media WHERE id=? AND user_id=? AND (?=1 OR kids_allowed=1)').bind(body.mediaId,profile.user_id,profile.role==='adult'?1:0).first()) return json({error:'Track not found'},404)
       await env.DB.prepare('INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) SELECT ?,?,COALESCE(MAX(position),0)+1 FROM playlist_tracks WHERE playlist_id=?').bind(match[1],body.mediaId,match[1]).run()

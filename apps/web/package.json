@@ -7,9 +7,10 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@jacobuid/king-auth": "git+https://github.com/jacobuid/king-auth.git#sdk",
+    "fflate": "^0.8.3",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@jacobuid/king-auth": "git+https://github.com/jacobuid/king-auth.git#sdk"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "vite": "^6.0.0"

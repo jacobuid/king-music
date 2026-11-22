@@ -1,3 +1,4 @@
+from enrichment import prepare_artwork, lyrics_for_song
 """King Music private importer. Cloud Tasks owns the lifetime of every import."""
 import hmac
 import json
@@ -179,6 +180,7 @@ class Job(BaseModel):
     id: str
     videoId: str
     callbackUrl: str
+    enrichOnly: bool = False
 
 
 def check_job(job):
@@ -245,32 +247,90 @@ def prepare_audio(directory, video_id):
     return output, {"status": "ready", "title": str(info.get("track") or info.get("title") or "Untitled")[:200], "artist": str(info.get("artist") or info.get("uploader") or "")[:100], "duration": duration, "album": str(info.get("album") or "")[:200]}
 
 
+def youtube_lyrics(video_id):
+    try:
+        with MusicSession() as session:
+            client = YTMusic(requests_session=session)
+            watch = client.get_watch_playlist(videoId=video_id, limit=1)
+            return client.get_lyrics(watch["lyrics"]) if watch.get("lyrics") else {}
+    except (YTMusicError, requests.RequestException, ValueError, KeyError, IndexError) as error:
+        raise RuntimeError("Lyrics lookup failed") from error
+
+
+def upload_file(job, path, suffix, mime):
+    upload = callback(job, "POST", suffix=suffix)["url"]
+    parsed = urlparse(upload)
+    if parsed.scheme != "https" or parsed.hostname != urlparse(os.environ["B2_ENDPOINT"]).hostname or parsed.username or parsed.password or parsed.port not in (None, 443):
+        raise RuntimeError("Invalid storage endpoint")
+    with path.open("rb") as stream:
+        response = requests.put(upload, data=stream, headers={"Content-Type": mime}, timeout=120)
+        response.raise_for_status()
+
+
+def enrich_song(directory, job, state, metadata, info):
+    result = {"duration": metadata.get("duration")}
+    if state.get("needArtwork", True):
+        artwork, status = prepare_artwork(directory, job.videoId, state.get("thumbnail"), info, run)
+        result["artworkStatus"] = status
+        if artwork:
+            try:
+                upload_file(job, artwork, "/artwork-upload", "image/jpeg")
+                result["artworkUploaded"] = True
+            except (requests.RequestException, RuntimeError):
+                result["artworkStatus"] = "failed"
+    else:
+        result["artworkStatus"] = "ready"
+    if state.get("needLyrics", True):
+        result.update(lyrics_for_song(metadata, job.videoId, youtube_lyrics))
+    return result
+
+
 @app.post("/process", dependencies=[Depends(authenticated)])
 def process(job: Job, x_cloudtasks_taskretrycount: str = Header(default="0")):
     check_job(job)
-    if callback(job)["status"] in ("ready", "failed"):
+    state = callback(job)
+    if job.enrichOnly:
+        if state["status"] != "ready" or (not state.get("needArtwork", True) and not state.get("needLyrics", True)):
+            return {"ok": True}
+    elif state["status"] in ("ready", "failed"):
         return {"ok": True}
-    callback(job, "POST", {"status": "processing"})
+    else:
+        callback(job, "POST", {"status": "processing"})
     try:
         with tempfile.TemporaryDirectory(prefix="king-music-") as temporary:
-            audio, metadata = prepare_audio(Path(temporary), job.videoId)
-            upload = callback(job, "POST", suffix="/upload")["url"]
-            # Only accept the storage host configured by the operator.
-            if urlparse(upload).scheme != "https" or urlparse(upload).hostname != urlparse(os.environ["B2_ENDPOINT"]).hostname:
-                raise RuntimeError("Invalid storage endpoint")
-            with audio.open("rb") as stream:
-                response = requests.put(upload, data=stream, headers={"Content-Type": "audio/mp4"}, timeout=120)
-                response.raise_for_status()
-            callback(job, "POST", metadata)
-    except (RuntimeError, subprocess.TimeoutExpired, ValueError, KeyError, StopIteration):
-        # Source/codec failures are terminal; retry is an explicit user action.
-        callback(job, "POST", {"status": "failed"})
+            directory = Path(temporary)
+            if job.enrichOnly:
+                # Repairs fetch metadata and images, never download the audio again.
+                try:
+                    info = json.loads(run(downloader(*youtube_cookie_arguments(directory), "--skip-download", "--dump-single-json", "--", f"https://www.youtube.com/watch?v={job.videoId}"), 60))
+                except (RuntimeError, ValueError, subprocess.TimeoutExpired):
+                    info = {}
+                metadata = {"title": state.get("title"), "artist": state.get("artist"), "album": state.get("album"), "duration": state.get("duration") or info.get("duration")}
+            else:
+                audio, metadata = prepare_audio(directory, job.videoId)
+                info = json.loads((directory / "source.info.json").read_text())
+                for key in ("title", "artist", "album"):
+                    if state.get(key) and state[key] not in ("Importing song", "YouTube song"):
+                        metadata[key] = state[key]
+                upload_file(job, audio, "/upload", "audio/mp4")
+            enriched = enrich_song(directory, job, state, metadata, info)
+            if job.enrichOnly:
+                callback(job, "POST", {"enrichment": enriched}, suffix="/enrichment")
+            else:
+                callback(job, "POST", {**metadata, "enrichment": enriched})
+    except (RuntimeError, subprocess.TimeoutExpired, ValueError, KeyError, StopIteration, FileNotFoundError):
+        if job.enrichOnly:
+            callback(job, "POST", {"enrichment": {"artworkStatus": "failed", "lyricsStatus": "failed"}}, suffix="/enrichment")
+        else:
+            callback(job, "POST", {"status": "failed"})
     except requests.RequestException:
         if x_cloudtasks_taskretrycount.isdigit() and int(x_cloudtasks_taskretrycount) >= 2:
-            callback(job, "POST", {"status": "failed"})
+            if job.enrichOnly:
+                callback(job, "POST", {"enrichment": {"artworkStatus": "failed", "lyricsStatus": "failed"}}, suffix="/enrichment")
+            else:
+                callback(job, "POST", {"status": "failed"})
         else:
             raise
-    # Network/storage errors retry durably, up to the queue's three-attempt limit.
     return {"ok": True}
 
 
