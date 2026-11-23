@@ -28,3 +28,11 @@ test('selecting a queued song keeps other upcoming songs and supports previous',
 test('Play replaces the current song and keeps upcoming songs instead of appending',()=>{
  const state=add(emptyQueue(),[song('a'),song('b'),song('c')]);const replaced=queueReducer(state,{type:'playNow',song:song('new')});assert.deepEqual(replaced.entries.map(s=>s.id),['new','b','c']);assert.equal(replaced.history.at(-1).id,'a')
 })
+test('Play collection starts its ordered songs while Add to queue still appends',()=>{
+ const original=add(emptyQueue(),[song('old'),song('upcoming')])
+ const collection=[song('first','new-1'),song('second','new-2')]
+ const started=queueReducer(original,{type:'playCollection',songs:collection})
+ assert.deepEqual(started.entries,collection);assert.deepEqual(started.history,[])
+ assert.deepEqual(queueReducer(started,{type:'next'}).entries.map(song=>song.id),['second'])
+ assert.deepEqual(add(original,collection).entries.map(song=>song.id),['old','upcoming','first','second'])
+})

@@ -4,6 +4,7 @@ export function queueReducer(state, action) {
   const { entries, history } = state
   switch (action.type) {
     case 'add': return { history: entries.length ? history : [], entries: [...entries, ...action.songs] }
+    case 'playCollection': return {entries:action.songs,history:[]}
     case 'playNow': return {entries:[action.song,...entries.slice(1)],history:entries.length?[...history,entries[0]]:[]}
     case 'clear': return emptyQueue()
     case 'next': return entries.length ? { entries: entries.slice(1), history: [...history, entries[0]] } : state

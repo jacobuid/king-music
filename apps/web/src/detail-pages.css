@@ -1,0 +1,126 @@
+.km-detail-page { display:grid; grid-template-columns:minmax(220px,280px) minmax(0,1fr); align-items:start; gap:clamp(24px,3vw,48px); padding-top:12px }
+.km-detail-summary { position:sticky; top:20px; min-width:0; text-align:center; max-height:none; overflow:visible }
+.km-detail-back { margin:0 auto 18px; color:#bbc2d2; justify-content:center }
+.km-detail-cover { position:relative; width:100%; aspect-ratio:1; margin-bottom:24px }
+.km-detail-cover>.km-artwork { width:100%; height:100%; object-fit:cover; border-radius:18px }
+.km-detail-cover .km-playlist-artwork { border-radius:18px }
+.km-detail-edit-cover { position:absolute; bottom:12px; right:12px; width:44px; height:44px; padding:10px; border:0; border-radius:50%; background:#f5f5f5; color:#12151c; box-shadow:0 4px 14px #0005 }
+.km-detail-identity h1 { margin:8px 0 16px; font-size:clamp(24px,2.3vw,34px); line-height:1.15; overflow-wrap:anywhere }
+.km-detail-creator { display:flex; align-items:center; justify-content:center; gap:10px; font-size:14px; color:#c1c7d5 }
+.km-detail-creator img,.km-detail-creator>span:first-child:not(:last-child) { width:28px; height:28px; object-fit:cover; border-radius:50% }
+.km-detail-actions { display:flex; align-items:center; justify-content:center; gap:12px; margin-top:24px; flex-wrap:wrap }
+.km-detail-actions>.km-detail-play { display:grid; place-items:center; width:64px; height:64px; border-radius:50%; padding:18px }
+.km-detail-play svg { width:26px; height:26px; fill:currentColor }
+.km-detail-actions>.km-icon-button { border:0; background:#ffffff0b; border-radius:50%; width:44px; height:44px; padding:11px }
+.km-detail-actions .km-playlist-actions { position:relative; inset:auto }
+.km-detail-actions .km-playlist-actions-trigger { width:44px; height:44px }
+.km-detail-content { min-width:0 }
+.km-detail-toolbar { display:flex; gap:18px; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap }
+.km-detail-toolbar h2 { margin:0; font-size:20px }
+.km-detail-toolbar .km-search { flex:1; min-width:160px; max-width:440px; margin:0 }
+.km-detail-content .km-library-song { padding-inline:12px; gap:10px }
+.km-detail-content .km-library-track { gap:10px }
+.km-detail-content .km-library-track>.km-artwork { width:48px; height:48px }
+.km-detail-artist-link { margin:auto; padding:0; color:#ffc000; border:0; background:none; font-size:18px }
+.km-artist-avatar { display:grid; place-items:center; aspect-ratio:1; width:100%; border-radius:50%; margin-bottom:24px; background:linear-gradient(135deg,#ce7400,#722025 60%,#101a31); font-size:100px; font-weight:700; color:white }
+.km-artist-albums { margin-bottom:32px }
+.km-artist-albums .km-grid { grid-template-columns:repeat(auto-fill,minmax(145px,1fr)) }
+@media(max-width:1100px) {
+ .km-detail-page { grid-template-columns:minmax(0,1fr); gap:28px }
+ .km-detail-summary { position:static; max-height:none; overflow:visible; display:grid; grid-template-columns:minmax(140px,210px) minmax(0,1fr); gap:18px 24px; align-items:center; text-align:left }
+ .km-detail-back { grid-column:1/-1; margin:0; justify-self:start }
+ .km-detail-cover,.km-artist-avatar { margin-bottom:0 }
+ .km-detail-creator,.km-detail-actions { justify-content:flex-start }
+ .km-detail-artist-link { margin:0 }
+}
+@media(max-width:599px) {
+ .km-detail-summary { grid-template-columns:110px minmax(0,1fr); gap:16px }
+ .km-detail-identity h1 { font-size:22px; margin-bottom:10px }
+ .km-detail-creator { font-size:12px; gap:6px }
+ .km-detail-actions { gap:8px; margin-top:16px }
+ .km-detail-actions>.km-detail-play { width:48px; height:48px; padding:12px }
+ .km-detail-actions>.km-icon-button,.km-detail-actions .km-playlist-actions-trigger { width:36px; height:36px; padding:8px }
+ .km-detail-identity>.km-muted { font-size:12px }
+ .km-detail-cover .km-detail-edit-cover { width:32px; height:32px; padding:7px; bottom:6px; right:6px }
+ .km-detail-identity .km-eyebrow { font-size:10px }
+ .km-artist-avatar { font-size:54px }
+}
+
+@media(min-width:1101px) {
+ .km-detail-summary { height:var(--detail-panel-height,calc(100dvh - 140px)); display:flex; flex-direction:column; align-items:center; gap:16px; overflow:visible }
+ .km-detail-summary>.km-detail-back { margin:0; flex-shrink:0 }
+ .km-detail-summary>.km-detail-cover,.km-detail-summary>.km-artist-avatar { width:var(--detail-art-size,100%); height:var(--detail-art-size,auto); margin:0; flex-shrink:0 }
+ .km-detail-identity { display:flow-root; width:100%; flex-shrink:0 }
+ .km-detail-summary>.km-artist-avatar { font-size:min(100px,calc(var(--detail-art-size,280px) * .4)) }
+}
+@media(min-width:1101px) and (max-height:650px) {
+ .km-detail-identity h1 { font-size:24px; margin:6px 0 10px }
+ .km-detail-identity .km-detail-actions { margin-top:14px }
+ .km-detail-identity .km-eyebrow { font-size:10px }
+}
+
+.km-detail-mobile-artist { display:none }
+@media(max-width:639px) {
+ .km-detail-summary { display:flex; flex-direction:column; align-items:center; gap:16px; text-align:center; height:auto }
+ .km-detail-summary>.km-detail-back { align-self:flex-start; margin-bottom:0 }
+ .km-detail-summary>.km-detail-cover,.km-detail-summary>.km-artist-avatar { width:min(60vw,240px); height:auto; margin:0 auto; flex-shrink:0 }
+ .km-detail-summary>.km-artist-avatar { font-size:72px }
+ .km-detail-identity { width:100%; text-align:center }
+ .km-detail-identity h1 { font-size:26px; margin:6px 0 12px }
+ .km-detail-identity .km-detail-creator,.km-detail-identity .km-detail-actions { justify-content:center }
+ .km-detail-identity .km-detail-actions { gap:16px; margin-top:20px }
+ .km-detail-actions>.km-detail-play { width:60px; height:60px; padding:16px }
+ .km-detail-actions>.km-icon-button,.km-detail-actions .km-playlist-actions-trigger { width:42px; height:42px; padding:10px }
+ .km-detail-summary>.km-detail-mobile-artist { display:block; background:none; border:0; padding:0; font-weight:600; color:#c9cedb; margin:0 }
+ .km-album-detail .km-detail-identity>.km-detail-artist-link { display:none }
+ .km-detail-summary .km-detail-edit-cover { width:40px; height:40px; padding:9px; bottom:10px; right:10px }
+ .km-detail-content .km-detail-toolbar { gap:12px; margin-bottom:16px }
+}
+.km-album-track-number { display:none }
+.km-album-song-list .km-library-song { grid-template-columns:minmax(0,1fr) 68px 36px 32px; border-color:transparent; background:transparent; border-radius:10px; min-height:84px; margin:0 }
+.km-album-song-list .km-library-song:hover,.km-album-song-list .km-library-song[data-current=true] { background:#ffffff08 }
+.km-album-song-list .km-library-play { border:0; background:transparent; box-shadow:none; color:#c4c8d1 }
+.km-album-song-list .km-library-play>.km-album-track-number { display:block; font-size:15px }
+.km-album-song-list .km-library-play>svg { display:none }
+.km-album-song-list .km-library-song:hover .km-library-play>svg,.km-album-song-list .km-library-play:focus-visible>svg,.km-album-song-list .km-library-song[data-current=true] .km-library-play>svg { display:block }
+.km-album-song-list .km-library-song:hover .km-album-track-number,.km-album-song-list .km-library-play:focus-visible>.km-album-track-number,.km-album-song-list .km-library-song[data-current=true] .km-album-track-number { display:none }
+.km-album-song-list .km-library-track-info strong { white-space:normal }
+.km-album-song-list .km-library-track-info .km-album-song-plays { display:block }
+.km-album-song-list .km-library-duration { display:block; text-align:right; font-size:14px }
+@media(max-width:639px) {
+ .km-album-song-list .km-library-song { grid-template-columns:minmax(0,1fr) 42px 28px; padding:10px 0; gap:8px }
+ .km-album-song-list .km-library-add { display:none }
+ .km-album-song-list .km-library-track { gap:8px }
+ .km-album-song-list .km-library-track-info strong { font-size:14px }
+ .km-album-song-list .km-library-track-info small { font-size:12px }
+ .km-album-song-list .km-library-play { width:24px; min-width:24px }
+}
+.km-artist-about { margin-bottom:30px; padding-bottom:24px; border-bottom:1px solid var(--km-border) }
+.km-artist-description { white-space:pre-line; color:#c8cdd8; line-height:1.7; max-width:900px }
+.km-album-description { color:#c8cdd8; font-size:14px; line-height:1.5; margin:12px 0 4px }
+.km-collection-source { display:block; margin-top:8px; font-size:11px }
+.km-collection-source a { color:#b3bacb }
+.km-album-artist { display:block; background:none; border:0; padding:0; font-weight:600; color:#c9cedb; margin:0 auto; flex-shrink:0 }
+.km-collection-about-dialog>p { white-space:pre-line; line-height:1.7 }
+@media(min-width:640px) and (max-width:1100px) { .km-album-artist { grid-column:1/-1; margin:0; justify-self:start } }
+@media(min-width:1101px) and (max-height:760px) {
+ .km-album-detail .km-detail-identity .km-album-description,.km-album-detail .km-detail-identity .km-collection-source { display:none }
+}
+.km-artist-page { padding-top:12px; min-width:0 }
+.km-artist-heading { margin-bottom:32px }
+.km-artist-heading>.km-text-button { margin-bottom:20px }
+.km-artist-heading-main { display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap }
+.km-artist-heading h1 { margin:4px 0 8px; font-size:clamp(30px,4vw,48px); overflow-wrap:anywhere }
+.km-artist-heading-actions { display:flex; gap:12px; flex-wrap:wrap }
+.km-artist-page .km-artist-albums { margin-bottom:40px }
+.km-artist-page .km-artist-albums .km-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:24px }
+.km-artist-page .km-artist-albums .km-section-heading { margin-bottom:20px }
+.km-artist-page .km-artist-about { max-width:960px; padding:24px 0 0; border-top:1px solid var(--km-border); border-bottom:0 }
+@media(max-width:639px) {
+ .km-artist-page .km-artist-albums .km-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 14px }
+ .km-artist-heading { margin-bottom:28px }
+ .km-artist-heading-main { gap:16px }
+ .km-artist-heading-actions { width:100% }
+ .km-artist-heading-actions>button { flex:1 }
+ .km-artist-page .km-music-card strong { font-size:14px }
+}

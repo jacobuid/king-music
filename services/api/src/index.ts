@@ -1,3 +1,4 @@
+import {collectionDetailsRoute} from './collection-details'
 import { homeActivityRoutes } from './home-activity'
 import { managementRoute, managementAccess } from './management'
 import { importRoutes, importCallback } from './imports'
@@ -41,6 +42,8 @@ export default {
       if (uploadResponse) return withCors(uploadResponse, cors)
       const activityResponse=await homeActivityRoutes(request,env,active)
       if(activityResponse)return withCors(activityResponse,cors)
+      const detailsResponse=await collectionDetailsRoute(request,env,active)
+      if(detailsResponse)return withCors(detailsResponse,cors)
       const musicResponse = await musicRoutes(request, env, active)
       if (musicResponse) return withCors(musicResponse, cors)
       if (path === '/api/admin/profiles' && request.method === 'GET') {

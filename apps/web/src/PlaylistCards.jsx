@@ -11,7 +11,7 @@ function PlaylistActions({list,editable,busy,onQueue,onRename,onDelete,onUpload,
   if(editable)items.push({label:'Rename',ariaLabel:`Rename ${list.name}`,icon:'edit',disabled:busy,onSelect:onRename},{label:'Delete',ariaLabel:`Delete ${list.name}`,icon:'trash',disabled:busy,onSelect:onDelete})
   return <CardMenu label={`More options for playlist ${list.name}`} id={`playlist-options-${list.id}`} items={items}/>
 }
-function PlaylistArtwork({list,index,songs}) {
+export function PlaylistArtwork({list,index,songs}) {
   const [failed,setFailed]=useState(null)
   if(list.thumbnailUrl&&failed!==list.thumbnailUrl)return <img className="km-artwork km-playlist-cover-image" src={list.thumbnailUrl} alt="" onError={()=>setFailed(list.thumbnailUrl)}/>
   return <span className="km-artwork km-playlist-artwork" aria-label="Playlist album-art collage">{playlistTiles(list.coverSongs,songs).map((song,tile)=><Artwork key={tile} item={song} index={index+tile}/>)}</span>

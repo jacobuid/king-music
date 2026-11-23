@@ -386,3 +386,53 @@ def enqueue_batch(body: Batch):
     for job in body.jobs:
         enqueue(job)
     return {"queued": len(body.jobs)}
+
+class CollectionDetailsRequest(BaseModel):
+    kind: str = Field(pattern="^(artist|album)$")
+    artist: str = Field(min_length=1, max_length=200)
+    album: str = Field(default="", max_length=200)
+    videoIds: list[str] = Field(min_length=1, max_length=3)
+
+
+@app.post("/collection/details", dependencies=[Depends(authenticated)])
+def collection_details(body: CollectionDetailsRequest):
+    if any(not VIDEO.fullmatch(video) for video in body.videoIds):
+        raise HTTPException(400, "Invalid video ID")
+    wanted_artist = search_text(body.artist)
+    failed = False
+    with MusicSession() as session:
+        client = YTMusic(requests_session=session)
+        for video_id in body.videoIds:
+            try:
+                watch = client.get_watch_playlist(videoId=video_id, limit=1)
+                track = next((track for track in watch.get("tracks", []) if track.get("videoId") == video_id), None)
+                if not track:
+                    continue
+                artists = track.get("artists") or []
+                artist = next((artist for artist in artists if search_text(artist.get("name")) == wanted_artist), None)
+                if not artist:
+                    continue
+                if body.kind == "artist":
+                    source_id = artist.get("id")
+                    if not isinstance(source_id, str) or not re.fullmatch(r"UC[A-Za-z0-9_-]{10,64}", source_id):
+                        continue
+                    data = client.get_artist(source_id)
+                    if search_text(data.get("name")) != wanted_artist:
+                        continue
+                    source_url = "https://music.youtube.com/channel/" + source_id
+                else:
+                    album = track.get("album") or {}
+                    source_id = album.get("id")
+                    if search_text(album.get("name")) != search_text(body.album) or not isinstance(source_id, str) or not re.fullmatch(r"MPRE[A-Za-z0-9_-]{3,100}", source_id):
+                        continue
+                    data = client.get_album(source_id)
+                    if search_text(data.get("title")) != search_text(body.album) or not any(search_text(artist.get("name")) == wanted_artist for artist in data.get("artists", [])):
+                        continue
+                    source_url = "https://music.youtube.com/browse/" + source_id
+                description = data.get("description")
+                return {"description": description[:20000] if isinstance(description, str) else None, "year": str(data.get("year")) if body.kind == "album" and data.get("year") else None, "sourceUrl": source_url}
+            except (YTMusicError, requests.RequestException, ValueError, KeyError, IndexError, TypeError):
+                failed = True
+    if failed:
+        raise HTTPException(502, "Collection information unavailable")
+    return {"description": None, "year": None, "sourceUrl": None}

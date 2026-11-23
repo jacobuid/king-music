@@ -31,6 +31,7 @@ export function usePlaybackQueue({ request, profileId, onPlayed }) {
     autoPlay,entries:state.entries,current:resolved?.queueId===head?.queueId?resolved:head,error,
     busy:!!head&&resolved?.queueId!==head.queueId&&!error,
     add:songs=>{if(songs.length){if(!state.entries.length)setAutoPlay(false);act({type:'add',songs:songs.map(song=>({...song,queueId:crypto.randomUUID()}))})}},
+    playCollection:songs=>{if(songs.length){setAutoPlay(true);act({type:'playCollection',songs:songs.map(song=>({...song,queueId:crypto.randomUUID()}))})}},
     playNow:song=>{setAutoPlay(true);act({type:'playNow',song:{...song,queueId:crypto.randomUUID()}})},
     next:()=>{setAutoPlay(true);act({type:'next'})},previous:()=>{setAutoPlay(true);act({type:'previous'})},hasPrevious:!!state.history.length,
     remove:id=>{if(id===head?.queueId)setAutoPlay(playing.current);act({type:'remove',id})},select:id=>{setAutoPlay(true);act({type:'select',id})},
