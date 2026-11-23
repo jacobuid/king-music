@@ -1,0 +1,8 @@
+import React from 'react'
+import {Artwork,Icon} from './ui'
+export function Artists({songs,query,onQueryChange,onOpen}) {
+ const groups=new Map()
+ for(const song of songs){if(!song.artist?.trim())continue;let group=groups.get(song.artist);if(!group){group={name:song.artist,songs:0,albums:new Set(),art:song};groups.set(song.artist,group)}group.songs++;if(song.album)group.albums.add(song.album);if(!group.art.thumbnailUrl&&song.thumbnailUrl)group.art=song}
+ const artists=[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)),visible=artists.filter(artist=>artist.name.toLowerCase().includes(query.trim().toLowerCase()))
+ return <section className="km-block" aria-label="Artists page"><p className="km-eyebrow">THE PEOPLE BEHIND YOUR MUSIC</p><h1>Artists</h1><label className="km-search"><Icon name="search"/><input aria-label="Search artists" placeholder="Search artists" value={query} onChange={event=>onQueryChange(event.target.value)}/></label><p className="km-muted">{artists.length} {artists.length===1?'artist':'artists'} in your library</p>{visible.length?<div className="km-grid km-artists-grid">{visible.map((artist,index)=><button type="button" className="km-music-card" key={artist.name} aria-label={'Open artist '+artist.name} onClick={()=>onOpen(artist.name)}><Artwork item={artist.art} index={index}/><strong>{artist.name}</strong><small>{artist.albums.size} {artist.albums.size===1?'album':'albums'} | {artist.songs} {artist.songs===1?'song':'songs'}</small></button>)}</div>:<div className="km-empty"><Icon name="profile"/><h3>{query?'No matching artists':'No artists yet'}</h3><p>{query?'Try another artist name.':'Artists appear when songs in your library have an artist name.'}</p></div>}</section>
+}

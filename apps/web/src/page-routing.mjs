@@ -1,4 +1,4 @@
-const SECTIONS=new Set(['home','library','playlists','playlist','albums','album','artist','admin','profiles'])
+const SECTIONS=new Set(['home','library','playlists','playlist','albums','album','artist','artists','admin','profiles'])
 export function historyPage(value={}) {
  const section=SECTIONS.has(value.section)?value.section:'home'
  const page={section,query:typeof value.query==='string'?value.query.slice(0,500):'',filter:null,profileForm:value.profileForm===true,editingProfileId:typeof value.editingProfileId==='string'?value.editingProfileId:null}
@@ -33,4 +33,4 @@ export function readPageHash(hash=''){
  else if(section==='artist'&&params.get('artist'))filter={artist:params.get('artist')}
  return historyPage({section,filter})
 }
-export function navigationSection(section){return {playlist:'playlists',album:'albums',artist:'library'}[section]||section}
+export function navigationSection(section){return {playlist:'playlists',album:'albums',artist:'artists'}[section]||section}

@@ -1,0 +1,24 @@
+/* Collapsed player: library information, transport, and queue tools. */
+.km-player-bar.km-collapsed-player { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:20px }
+.km-mini-track { display:flex; align-items:center; gap:14px; min-width:0 }
+.km-mini-art { padding:0; border:0; background:transparent; flex-shrink:0; border-radius:6px }
+.km-mini-art>.km-artwork { display:block; width:52px; height:52px; object-fit:cover; border-radius:6px }
+.km-mini-track>div { min-width:0 }
+.km-mini-title { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; background:transparent; border:0; padding:0; min-height:0; color:white; font-size:16px; font-weight:650; border-radius:0 }
+.km-mini-track small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#bbc3d5; margin-top:4px; font-size:13px }
+.km-mini-playback,.km-mini-tools,.km-mini-volume { display:flex; align-items:center; gap:12px }
+.km-mini-tools { justify-content:flex-end; min-width:0; gap:8px }
+.km-mini-time { font-size:12px; font-variant-numeric:tabular-nums; color:#bbc3d5; white-space:nowrap }
+.km-player-bar.km-collapsed-player .km-mini-toggle { width:46px; height:46px; min-height:46px; padding:8px; border:0; background:transparent; box-shadow:none; color:white }
+.km-mini-toggle svg { width:32px; height:32px }
+.km-player-bar.km-collapsed-player .km-icon-button { background:transparent; border:0; padding:6px; width:34px; min-width:34px; min-height:38px; color:#bbc3d5 }
+.km-player-bar.km-collapsed-player .km-icon-button:hover { color:white; background:#ffffff0a }
+.km-player-bar.km-collapsed-player [aria-pressed=true] { color:#ffb000 }
+.km-mini-volume { gap:8px; margin:0 }
+.km-mini-volume input { width:85px; min-height:28px; margin:0; padding:0; accent-color:white }
+.km-mini-volume svg { width:22px; height:22px; flex-shrink:0 }
+@media(max-width:1100px) and (min-width:640px) { .km-player-bar.km-collapsed-player { grid-template-columns:minmax(0,1fr) auto auto; gap:12px }.km-mini-volume input { width:60px }.km-mini-tools { gap:2px }.km-mini-playback { gap:6px }.km-mini-track { gap:10px } }
+@media(max-width:767px) { .km-mini-volume,.km-mini-repeat,.km-mini-shuffle { display:none } }
+@media(max-width:639px) { .km-player-bar.km-collapsed-player { grid-template-columns:minmax(0,1fr) auto; gap:8px }.km-mini-track { gap:10px }.km-mini-art>.km-artwork { width:44px; height:44px }.km-mini-title { font-size:14px }.km-mini-track small { font-size:11px }.km-mini-playback { gap:2px }.km-mini-time,.km-mini-tools { display:none }.km-player-bar.km-collapsed-player .km-icon-button { width:28px; min-width:28px; padding:4px } }
+
+.km-mini-toggle svg { fill:currentColor }
