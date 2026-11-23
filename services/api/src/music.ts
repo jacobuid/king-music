@@ -12,10 +12,15 @@ export async function musicRoutes(request: Request, env: Env, profile: {id:strin
   if(orderResponse)return orderResponse
   if(path==='/api/playlists'&&request.method==='GET')return json(await accountPlaylists(env,profile))
   if (path === '/api/playlists' && request.method === 'POST') {
-    const body = await request.json() as {name?:string}
+    const body = await request.json() as {name?:string;mediaIds?:unknown}
     if (typeof body.name !== 'string' || !body.name.trim() || body.name.length>80) return json({error:'Enter a playlist name (up to 80 characters)'},400)
-    const id=crypto.randomUUID(); await env.DB.prepare('INSERT INTO playlists(id,profile_id,name) VALUES(?,?,?)').bind(id,profile.id,body.name.trim()).run()
-    const owner=await env.DB.prepare('SELECT name FROM profiles WHERE id=?').bind(profile.id).first<{name:string}>();return json({id,name:body.name.trim(),creatorId:profile.id,creatorName:owner?.name||'',canEdit:true},201)
+    if(body.mediaIds!==undefined&&(!Array.isArray(body.mediaIds)||body.mediaIds.length>1000||body.mediaIds.some(id=>typeof id!=='string'||!id)))return json({error:'Choose up to 1000 songs from your library.'},400)
+    const ids=[...new Set((body.mediaIds||[]) as string[])]
+    for(let offset=0;offset<ids.length;offset+=90){const chunk=ids.slice(offset,offset+90);const allowed=await env.DB.prepare(`SELECT id FROM media WHERE user_id=? AND (?=1 OR kids_allowed=1) AND id IN (${chunk.map(()=>'?').join(',')})`).bind(profile.user_id,profile.role==='adult'?1:0,...chunk).all();if(allowed.results.length!==chunk.length)return json({error:'One or more selected songs are unavailable. Update your selection and try again.'},404)}
+    const id=crypto.randomUUID(),statements=[env.DB.prepare('INSERT INTO playlists(id,profile_id,name) VALUES(?,?,?)').bind(id,profile.id,body.name.trim())]
+    for(let offset=0;offset<ids.length;offset+=30){const chunk=ids.slice(offset,offset+30);statements.push(env.DB.prepare(`INSERT INTO playlist_tracks(playlist_id,media_id,position) VALUES ${chunk.map(()=>'(?,?,?)').join(',')}`).bind(...chunk.flatMap((mediaId,index)=>[id,mediaId,offset+index+1])))}
+    await env.DB.batch(statements)
+    const owner=await env.DB.prepare('SELECT name FROM profiles WHERE id=?').bind(profile.id).first<{name:string}>();return json({id,name:body.name.trim(),creatorId:profile.id,creatorName:owner?.name||'',canEdit:true,songCount:ids.length},201)
   }
   const playlistMatch=path.match(/^\/api\/playlists\/([^/]+)$/)
   if(playlistMatch && ['POST','DELETE'].includes(request.method)) {

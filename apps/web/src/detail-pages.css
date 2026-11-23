@@ -77,7 +77,7 @@
  .km-detail-content .km-detail-toolbar { gap:12px; margin-bottom:16px }
 }
 .km-album-track-number { display:none }
-.km-album-song-list .km-library-song { grid-template-columns:minmax(0,1fr) 68px 36px 32px; border-color:transparent; background:transparent; border-radius:10px; min-height:84px; margin:0 }
+.km-album-song-list .km-library-song { grid-template-columns:minmax(0,1fr) 68px 32px; border-color:transparent; background:transparent; border-radius:10px; min-height:84px; margin:0 }
 .km-album-song-list .km-library-song:hover,.km-album-song-list .km-library-song[data-current=true] { background:#ffffff08 }
 .km-album-song-list .km-library-play { border:0; background:transparent; box-shadow:none; color:#c4c8d1 }
 .km-album-song-list .km-library-play>.km-album-track-number { display:block; font-size:15px }
