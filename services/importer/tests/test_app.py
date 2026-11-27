@@ -143,9 +143,10 @@ class MusicTests(unittest.TestCase):
         self.assertTrue(any(video["videoId"] in ids for video in videos))
         self.assertTrue(any(song["videoId"] in ids for song in songs))
 
+    @patch.object(service, "youtube_page_search", side_effect=ValueError("unavailable"))
     @patch.object(service, "youtube_search", side_effect=RuntimeError("unavailable"))
     @patch.object(service, "YTMusic")
-    def test_upstream_music_search_failure_is_reported(self, client, fallback):
+    def test_upstream_music_search_failure_is_reported(self, client, fallback, page):
         client.return_value.search.side_effect = requests.Timeout("upstream timeout")
         self.assertEqual(self.client.post("/search", json={"query": "song"}, headers=self.headers).status_code, 502)
 

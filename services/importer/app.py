@@ -191,6 +191,39 @@ def check_job(job):
         raise HTTPException(400, "Invalid callback")
 
 
+def youtube_page_search(query):
+    # Search-page metadata avoids the separate API POST that some hosts reject.
+    response = requests.get("https://www.youtube.com/results", params={"search_query": query}, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36", "Accept-Language": "en-US,en;q=0.9"}, timeout=12)
+    response.raise_for_status()
+    if len(response.content) > 5 * 1024 * 1024:
+        raise ValueError("Search page is too large")
+    match = re.search(r'(?:var\s+)?ytInitialData\s*=\s*|window\["ytInitialData"\]\s*=\s*', response.text)
+    if not match:
+        raise ValueError("Search page metadata is unavailable")
+    data, _ = json.JSONDecoder().raw_decode(response.text[match.end():])
+    def text(value):
+        return value.get("simpleText") or "".join(run.get("text", "") for run in value.get("runs", []))
+    entries, pending, visited = [], [data], 0
+    while pending and len(entries) < 32 and visited < 50000:
+        node = pending.pop()
+        visited += 1
+        if isinstance(node, list):
+            pending.extend(reversed(node))
+        elif isinstance(node, dict):
+            video = node.get("videoRenderer")
+            if isinstance(video, dict):
+                length = text(video.get("lengthText") or {})
+                if not re.fullmatch(r"[0-9]{1,2}(?::[0-9]{2}){1,2}", length):
+                    continue
+                duration = 0
+                for part in length.split(":"):
+                    duration = duration * 60 + int(part)
+                entries.append({"videoId": video.get("videoId"), "title": text(video.get("title") or {}), "duration_seconds": duration, "artists": [{"name": text(video.get("ownerText") or video.get("longBylineText") or {})}], "thumbnails": (video.get("thumbnail") or {}).get("thumbnails") or []})
+            else:
+                pending.extend(reversed(list(node.values())))
+    return ranked_music_results(query, [], entries)
+
+
 def youtube_search(query):
     # Metadata-only fallback when the Music API returns HTML or malformed JSON.
     with tempfile.TemporaryDirectory(prefix="king-music-search-") as temporary:
@@ -217,6 +250,10 @@ def search(body: Search):
         if songs:
             return {"results": ranked_music_results(body.query, songs, [])}
         logging.getLogger('king_sports.music').warning('Music search unavailable; trying metadata-only YouTube search')
+    try:
+        return {"results": youtube_page_search(body.query.strip())}
+    except (requests.RequestException, ValueError, KeyError, IndexError):
+        logging.getLogger('king_sports.music').warning('Search page metadata unavailable; trying extractor search')
     try:
         return {"results": youtube_search(body.query.strip())}
     except (RuntimeError, subprocess.TimeoutExpired, ValueError, KeyError, FileNotFoundError):

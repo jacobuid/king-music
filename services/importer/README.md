@@ -36,3 +36,5 @@ Use yt-dlp 2026.11.23 or newer. The previously deployed 2026.10.26 build failed 
 Downloader warnings are captured so the logger can classify challenge failures, missing formats, and verification problems. Authenticated stderr remains private; only fixed, recognized diagnostic messages are logged.
 
 Song search prefers structured YouTube Music metadata. If the Music API returns a blocked HTML/non-JSON response, metadata-only YouTube search supplies results through the existing authenticated importer session. Successful Music song results are retained if only its video query fails. Fallback results use the same ID, duration, artwork-host validation, deduplication, and relevance ranking; no audio is imported until the listener chooses Download.
+
+Search also supports the public YouTube results page: it reads only embedded video metadata via GET when API POSTs are rejected. This path applies the same duration limits and result validation and does not fetch audio. The extractor search remains a final fallback.
