@@ -2,7 +2,7 @@ import type {Env} from './index'
 import {importRoutes,thumbnailUrl} from './imports'
 import {allowedKey,playbackUrl} from './storage'
 type Profile={id:string;user_id:string;role:string}
-type SongRequest={id:string;user_id:string;profile_id:string;media_id:string|null;video_id:string|null;title:string;artist:string;album:string;thumbnail_url:string|null;status:string;requester:string;import_status:string|null;thumbnail_key:string|null;created_at:string}
+type SongRequest={id:string;user_id:string;profile_id:string;media_id:string|null;video_id:string|null;title:string;artist:string;album:string;thumbnail_url:string|null;status:string;requester:string;import_status:string|null;thumbnail_key:string|null;created_at:string;playlist_ids:string|null}
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}})
 const clean=(value:unknown,max:number)=>typeof value==='string'?value.trim().slice(0,max):''
 const videoPattern=/^[A-Za-z0-9_-]{11}$/
@@ -22,8 +22,8 @@ export async function songRequestRoutes(request:Request,env:Env,profile:Profile)
   return json({library:await Promise.all(rows.results.map(async row=>({id:row.id,title:row.title,artist:row.artist,album:row.album,youtubeVideoId:row.youtube_video_id,thumbnailUrl:await picture(env,row),requestOnly:true}))),results:data?.results||[],searchError:upstream&&!upstream.ok?'More song results are unavailable. Try again.':null})
  }
  if(path==='/api/song-requests'&&request.method==='GET'){
-  const rows=await env.DB.prepare(`SELECT r.*,p.name AS requester,j.status AS import_status,m.thumbnail_key FROM song_requests r JOIN profiles p ON p.id=r.profile_id AND p.user_id=r.user_id LEFT JOIN import_jobs j ON j.user_id=r.user_id AND j.video_id=r.video_id LEFT JOIN media m ON m.id=r.media_id AND m.user_id=r.user_id WHERE r.user_id=? AND ${adult?"(r.status='pending' OR (r.status='approved' AND j.status='failed'))":"r.profile_id=?"} ORDER BY ${adult?'r.created_at ASC':'r.updated_at DESC'} LIMIT 500`).bind(profile.user_id,...(adult?[]:[profile.id])).all<SongRequest>()
-  return json({requests:await Promise.all(rows.results.map(async row=>({id:row.id,mediaId:row.media_id,videoId:row.video_id,title:row.title,artist:row.artist,album:row.album,thumbnailUrl:await picture(env,row),requester:row.requester,profileId:row.profile_id,status:row.status,importStatus:row.import_status,createdAt:row.created_at})))})
+  const rows=await env.DB.prepare(`SELECT r.*,(SELECT GROUP_CONCAT(rp.playlist_id) FROM song_request_playlists rp WHERE rp.request_id=r.id) AS playlist_ids,p.name AS requester,j.status AS import_status,m.thumbnail_key FROM song_requests r JOIN profiles p ON p.id=r.profile_id AND p.user_id=r.user_id LEFT JOIN import_jobs j ON j.user_id=r.user_id AND j.video_id=r.video_id LEFT JOIN media m ON m.id=r.media_id AND m.user_id=r.user_id WHERE r.user_id=? AND ${adult?"(r.status='pending' OR (r.status='approved' AND j.status='failed'))":"r.profile_id=?"} ORDER BY ${adult?'r.created_at ASC':'r.updated_at DESC'} LIMIT 500`).bind(profile.user_id,...(adult?[]:[profile.id])).all<SongRequest>()
+  return json({requests:await Promise.all(rows.results.map(async row=>({id:row.id,mediaId:row.media_id,videoId:row.video_id,title:row.title,artist:row.artist,album:row.album,thumbnailUrl:await picture(env,row),requester:row.requester,profileId:row.profile_id,playlistIds:row.playlist_ids?row.playlist_ids.split(','):[],status:row.status,importStatus:row.import_status,createdAt:row.created_at})))})
  }
  if(request.method!=='POST')return json({error:'Not found'},404)
  const raw=await request.text();if(raw.length>12000)return json({error:'Too large'},413)
@@ -31,19 +31,33 @@ export async function songRequestRoutes(request:Request,env:Env,profile:Profile)
  if(!body||typeof body!=='object'||Array.isArray(body))return json({error:'Invalid request'},400)
  if(path==='/api/song-requests'){
   if(adult)return json({error:'Kids profile required'},403)
+  const targetPlaylist=clean(body.playlistId,100)
+  if(body.playlistId!==undefined){
+   const target=await env.DB.prepare('SELECT p.id FROM playlists p JOIN profiles owner ON owner.id=p.profile_id WHERE p.id=? AND p.profile_id=? AND owner.user_id=?').bind(targetPlaylist,profile.id,profile.user_id).first()
+   if(!target)return json({error:'You can only request songs for your own playlists'},403)
+  }
+  async function attach(id:string){if(targetPlaylist)await env.DB.prepare('INSERT OR IGNORE INTO song_request_playlists(request_id,playlist_id) VALUES(?,?)').bind(id,targetPlaylist).run()}
   const mediaId=clean(body.mediaId,100),videoId=clean(body.videoId,100)
   const media=(mediaId||videoPattern.test(videoId))?await env.DB.prepare('SELECT id,title,artist,album,youtube_video_id,thumbnail_url,kids_allowed FROM media WHERE user_id=? AND '+(mediaId?'id=?':'youtube_video_id=?')).bind(profile.user_id,mediaId||videoId).first<{id:string;title:string;artist:string;album:string;youtube_video_id:string;thumbnail_url:string;kids_allowed:number}>():null
   if(mediaId&&!media)return json({error:'Song not found'},404)
-  if(media?.kids_allowed)return json({available:true})
+  if(media?.kids_allowed){
+   if(targetPlaylist)await env.DB.prepare('INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) SELECT ?,?,COALESCE(MAX(position),0)+1 FROM playlist_tracks WHERE playlist_id=?').bind(targetPlaylist,media.id,targetPlaylist).run()
+   return json({available:true,added:!!targetPlaylist})
+  }
   if(!media&&!videoPattern.test(videoId))return json({error:'Invalid song'},400)
   const title=media?.title||clean(body.title,200);if(!title)return json({error:'Song title required'},400)
   const songKey=media?'media:'+media.id:'video:'+videoId
   const existing=await env.DB.prepare('SELECT id,status FROM song_requests WHERE user_id=? AND profile_id=? AND song_key=?').bind(profile.user_id,profile.id,songKey).first<{id:string;status:string}>()
-  if(existing&&existing.status!=='declined')return json({id:existing.id,status:existing.status})
+  if(existing&&existing.status!=='declined'){
+   await attach(existing.id)
+   if(existing.status==='approved'&&media?.kids_allowed)await addRequestedSongToPlaylists(env,existing.id,media.id)
+   return json({id:existing.id,status:existing.status})
+  }
   const count=await env.DB.prepare("SELECT COUNT(*) AS n FROM song_requests WHERE user_id=? AND profile_id=? AND status='pending'").bind(profile.user_id,profile.id).first<{n:number}>()
   if((count?.n||0)>=100)return json({error:'You already have 100 requests waiting for approval.'},429)
   const id=existing?.id||crypto.randomUUID()
   await env.DB.prepare("INSERT INTO song_requests(id,user_id,profile_id,song_key,media_id,video_id,title,artist,album,thumbnail_url) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,profile_id,song_key) DO UPDATE SET status='pending',updated_at=CURRENT_TIMESTAMP").bind(id,profile.user_id,profile.id,songKey,media?.id||null,media?.youtube_video_id||videoId||null,title,media?.artist||clean(body.artist,200),media?.album||clean(body.album,200),media?.thumbnail_url||thumbnailUrl(body.thumbnail)).run()
+  await attach(id)
   return json({id,status:'pending'},201)
  }
  if(path==='/api/song-requests/approve'||path==='/api/song-requests/decline'){
@@ -58,7 +72,7 @@ export async function songRequestRoutes(request:Request,env:Env,profile:Profile)
    if(!media&&!row.video_id){results.push({id,error:'This song is no longer available'});continue}
    // Permission is persisted before dispatch so even a fast callback sees it.
    await env.DB.prepare("UPDATE song_requests SET status='approved',updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?").bind(id,profile.user_id).run()
-   if(media){await env.DB.prepare('UPDATE media SET kids_allowed=1 WHERE id=? AND user_id=?').bind(media.id,profile.user_id).run();results.push({id,ok:true});continue}
+   if(media){await env.DB.prepare('UPDATE media SET kids_allowed=1 WHERE id=? AND user_id=?').bind(media.id,profile.user_id).run();await addRequestedSongToPlaylists(env,row.id,media.id);results.push({id,ok:true});continue}
    try{
     const imported=await importRoutes(new Request(new URL('/api/discovery/song',url),{method:'POST',body:JSON.stringify({videoId:row.video_id,title:row.title,artist:row.artist,album:row.album,thumbnail:row.thumbnail_url})}),env,profile)
     const data=await imported?.json() as {limited?:number;error?:string}|undefined
@@ -70,4 +84,8 @@ export async function songRequestRoutes(request:Request,env:Env,profile:Profile)
   return json({results})
  }
  return json({error:'Not found'},404)
+}
+
+async function addRequestedSongToPlaylists(env:Env,requestId:string,mediaId:string){
+ await env.DB.prepare("INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) SELECT rp.playlist_id,?,COALESCE((SELECT MAX(t.position) FROM playlist_tracks t WHERE t.playlist_id=rp.playlist_id),0)+1 FROM song_request_playlists rp JOIN song_requests r ON r.id=rp.request_id JOIN playlists p ON p.id=rp.playlist_id JOIN profiles owner ON owner.id=p.profile_id WHERE r.id=? AND r.status='approved' AND p.profile_id=r.profile_id AND owner.user_id=r.user_id").bind(mediaId,requestId).run()
 }

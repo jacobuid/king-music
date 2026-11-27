@@ -24,3 +24,11 @@
 
 .km-requests-body .km-request-select{min-width:36px}
 @media(max-width:639px){.km-requests-body article{grid-template-columns:36px 48px minmax(0,1fr);gap:12px}}
+
+.km-request-song .km-library-track-info>.km-muted:empty{display:none}
+
+.km-request-button.km-btn--primary{width:auto;min-height:40px;min-width:0;padding:9px 12px;border-radius:12px;gap:6px;font-size:12px;white-space:nowrap;flex-shrink:0}
+.km-request-button.km-btn--primary svg{width:18px;height:18px;flex-shrink:0}
+
+.km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-song.km-request-song{grid-template-columns:minmax(0,1.8fr) minmax(0,.9fr) auto}
+@media(max-width:639px){.km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-song.km-request-song{grid-template-columns:minmax(0,1fr) auto}}

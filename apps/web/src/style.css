@@ -555,3 +555,8 @@ input[type=file]::file-selector-button { padding: 8px 12px; margin-right: 12px; 
 
 html.km-installed-app { touch-action:pan-x pan-y }
 html.km-installed-app input,html.km-installed-app textarea,html.km-installed-app select { font-size:max(16px,1em) }
+
+.km-import-create-playlist{display:flex;align-items:center;gap:14px;padding:20px 0;cursor:pointer;text-align:left}
+.km-import-create-playlist input{width:20px;min-width:20px;height:20px;accent-color:#ffb000}
+.km-import-create-playlist span{display:grid;gap:6px}
+.km-import-create-playlist small{color:var(--km-muted)}

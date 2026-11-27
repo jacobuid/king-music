@@ -124,3 +124,20 @@
  .km-artist-heading-actions>button { flex:1 }
  .km-artist-page .km-music-card strong { font-size:14px }
 }
+
+.km-playlist-songs-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%}
+.km-add-songs-dialog{width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--km-border);border-radius:22px;background:var(--km-surface);color:var(--km-text);overflow:hidden}
+.km-add-songs-dialog[open]{display:flex;flex-direction:column}
+.km-add-songs-dialog::backdrop{background:#000a;backdrop-filter:blur(6px)}
+.km-add-songs-dialog>header{flex-shrink:0;padding:24px;border-bottom:1px solid var(--km-border)}
+.km-add-songs-dialog h2{margin:0}
+.km-add-songs-dialog header p{margin:8px 0 0}
+.km-add-songs-dialog .km-search{margin-top:20px}
+.km-add-songs-results{overflow-y:auto;overscroll-behavior:contain;padding:0 24px;min-height:0}
+.km-add-songs-results article{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:14px;align-items:center;padding:16px 0;border-bottom:1px solid var(--km-border)}
+.km-add-songs-results .km-artwork{width:52px;height:52px;border-radius:8px;object-fit:cover}
+.km-add-songs-results article>div{display:grid;gap:5px;overflow-wrap:anywhere}
+.km-add-songs-results small{color:var(--km-muted)}
+.km-add-songs-results button{padding:10px 12px;min-height:44px;gap:6px}
+.km-add-songs-dialog>footer{display:flex;justify-content:flex-end;flex-shrink:0;padding:16px 24px;border-top:1px solid var(--km-border)}
+@media(max-width:639px){.km-add-songs-dialog>header{padding:18px}.km-add-songs-results{padding:0 18px}.km-add-songs-results article{grid-template-columns:42px minmax(0,1fr) auto;gap:10px}.km-add-songs-results .km-artwork{width:42px;height:42px}.km-add-songs-results button svg{width:16px}.km-add-songs-results button{padding:8px;font-size:12px}}

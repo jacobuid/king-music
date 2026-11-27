@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 const asset = name => `${import.meta.env.BASE_URL}${name}`
 export function Icon({ name, ...props }) {
   const paths = {
+    help:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.5 9a2.5 2.5 0 0 1 5 .5c0 2-2.5 2-2.5 4M12 17h.01',
     bell:'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
     cast:'M3 4h18v16h-4M3 20h.01M3 15a5 5 0 0 1 5 5M3 10a10 10 0 0 1 10 10',
     shuffle:'M3 5h3c5 0 7 14 12 14h3m-4-4 4 4-4 4M3 19h3c2 0 4-3 6-7m3-5c1-1 2-2 3-2h3m-4-4 4 4-4 4',

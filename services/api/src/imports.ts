@@ -86,8 +86,13 @@ export async function importRoutes(request: Request, env: Env, profile: { id: st
     }
     return json({queued:jobs.length},202)
   }
+  let targetPlaylist=path==='/api/admin/imports/song'&&typeof body.playlistId==='string'?body.playlistId:null
+  if(body.playlistId!==undefined){
+   if(!targetPlaylist||!await env.DB.prepare('SELECT p.id FROM playlists p JOIN profiles owner ON owner.id=p.profile_id WHERE p.id=? AND owner.user_id=?').bind(targetPlaylist,profile.user_id).first())return json({error:'Playlist not found'},404)
+  }
   const retry = path.match(/^\/api\/admin\/imports\/([a-f0-9-]+)\/retry$/)
-  let songs: Song[]
+  let songs: Song[],sourcePlaylistName=''
+  if(body.createPlaylist!==undefined&&(path!=='/api/admin/imports/playlist'||typeof body.createPlaylist!=='boolean'))return json({error:'Invalid playlist option'},400)
   if (retry) {
     const job = await env.DB.prepare("SELECT * FROM import_jobs WHERE id=? AND user_id=? AND status='failed'").bind(retry[1],profile.user_id).first<Job>()
     if (!job) return json({ error: 'Failed import not found' }, 404)
@@ -103,6 +108,7 @@ export async function importRoutes(request: Request, env: Env, profile: { id: st
     if (selection !== undefined && (!Array.isArray(selection) || !selection.length || selection.length > 100 || selection.some(id => typeof id !== 'string' || !videoPattern.test(id)))) return json({error:'Select between 1 and 100 valid songs to import.'},400)
     let result
     try { result = await service(env,'/playlist',{playlistId:id}) } catch { return json({error:'Could not read this playlist. Please try again.'},502) }
+    sourcePlaylistName=clean(result.title,80)||'Imported playlist'
     const seen = new Set<string>()
     songs = (result.tracks || []).filter(song => { if (!videoPattern.test(song.videoId) || seen.has(song.videoId)) return false; seen.add(song.videoId); return true })
     if (selection !== undefined) {
@@ -124,18 +130,26 @@ export async function importRoutes(request: Request, env: Env, profile: { id: st
   const jobs: Job[] = []
   for(let offset=0;offset<ids.length;offset+=99){const part=ids.slice(offset,offset+99);const rows=await env.DB.prepare(`SELECT * FROM import_jobs WHERE user_id=? AND video_id IN (${part.map(()=>'?').join(',')})`).bind(profile.user_id,...part).all<Job>();jobs.push(...rows.results)}
   const byVideo = new Map(jobs.map(job=>[job.video_id,job]))
+  const creatingPlaylist=path==='/api/admin/imports/playlist'&&body.createPlaylist===true&&songs.some(song=>mediaByVideo.has(song.videoId)||byVideo.has(song.videoId))
+  if(creatingPlaylist){targetPlaylist=crypto.randomUUID();await env.DB.prepare('INSERT INTO playlists(id,profile_id,name) VALUES(?,?,?)').bind(targetPlaylist,profile.id,sourcePlaylistName).run()}
   let limited=0
   for(let position=0;position<songs.length;position++){
     const song=songs[position],mediaId=mediaByVideo.get(song.videoId),job=byVideo.get(song.videoId)
-    if(mediaId){reused++;continue}
+    if(mediaId){
+      if(targetPlaylist&&creatingPlaylist)await env.DB.prepare('INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) VALUES(?,?,?)').bind(targetPlaylist,mediaId,position+1).run()
+      else if(targetPlaylist)await env.DB.prepare('INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) SELECT ?,?,COALESCE(MAX(position),0)+1 FROM playlist_tracks WHERE playlist_id=?').bind(targetPlaylist,mediaId,targetPlaylist).run()
+      reused++;continue
+    }
     if(!job){limited++;continue}
+    if(targetPlaylist&&creatingPlaylist)await env.DB.prepare('INSERT OR IGNORE INTO import_playlist_tracks(job_id,playlist_id,position) VALUES(?,?,?)').bind(job.id,targetPlaylist,position+1).run()
+    else if(targetPlaylist)await env.DB.prepare('INSERT OR IGNORE INTO import_playlist_tracks(job_id,playlist_id,position) SELECT ?,?,MAX(COALESCE((SELECT MAX(position) FROM playlist_tracks WHERE playlist_id=?),0),COALESCE((SELECT MAX(position) FROM import_playlist_tracks WHERE playlist_id=?),0))+1').bind(job.id,targetPlaylist,targetPlaylist,targetPlaylist).run()
     if(newlyQueued.has(job.id))queue.push({id:job.id,videoId:job.video_id,callbackUrl:`${url.origin}/api/internal/music/${job.id}`});else reused++
   }
   if(queue.length) try { await service(env,'/jobs/batch',{jobs:queue}) } catch {
     await env.DB.batch(queue.map(job => env.DB.prepare("UPDATE import_jobs SET status='failed',error='Could not queue this import. Please retry.' WHERE id=? AND status='queued'").bind(job.id)))
     return json({error:'Could not queue all songs. Retry failed imports from the list.'},502)
   }
-  return json({queued:queue.length,reused,limited},202)
+  return json({queued:queue.length,reused,limited,...(creatingPlaylist?{playlistId:targetPlaylist}:{} )},202)
 }
 export async function importCallback(request: Request, env: Env): Promise<Response> {
   if (!env.MUSIC_SERVICE_TOKEN || request.headers.get('Authorization') !== `Bearer ${env.MUSIC_SERVICE_TOKEN}`) return json({error:'Unauthorized'},401)
@@ -179,6 +193,7 @@ export async function importCallback(request: Request, env: Env): Promise<Respon
       env.DB.prepare("INSERT INTO media(id,title,artist,album,video_key,mime_type,category,kids_allowed,user_id,youtube_video_id,thumbnail_url,thumbnail_key) VALUES(?,?,?,?,?,'audio/mp4','Music',EXISTS(SELECT 1 FROM song_requests WHERE user_id=? AND video_id=? AND status='approved'),?,?,?,?) ON CONFLICT(user_id,youtube_video_id) WHERE youtube_video_id IS NOT NULL DO NOTHING").bind(job.id,clean(b.title,200)||job.title,clean(b.artist,200)||job.artist,clean(b.album,200)||job.album,`music/${job.id}.m4a`,job.user_id,job.video_id,job.user_id,job.video_id,job.thumbnail_url,enriched.coverKey),
       ...enriched.statements,
       env.DB.prepare('INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) SELECT ip.playlist_id,m.id,ip.position FROM import_playlist_tracks ip JOIN media m ON m.youtube_video_id=? AND m.user_id=? WHERE ip.job_id=?').bind(job.video_id,job.user_id,job.id),
+      env.DB.prepare("INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) SELECT DISTINCT rp.playlist_id,m.id,COALESCE((SELECT MAX(t.position) FROM playlist_tracks t WHERE t.playlist_id=rp.playlist_id),0)+1 FROM song_request_playlists rp JOIN song_requests r ON r.id=rp.request_id JOIN playlists p ON p.id=rp.playlist_id JOIN profiles owner ON owner.id=p.profile_id JOIN media m ON m.user_id=r.user_id AND m.youtube_video_id=r.video_id WHERE r.user_id=? AND r.video_id=? AND r.status='approved' AND owner.user_id=r.user_id AND p.profile_id=r.profile_id").bind(job.user_id,job.video_id),
       env.DB.prepare("UPDATE import_jobs SET status='ready',progress=100,progress_stage='ready',error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(job.id),
     ])
   } else if(b.status==='failed')await env.DB.prepare("UPDATE import_jobs SET status='failed',progress_stage='failed',error=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','processing')").bind('This song could not be imported. The source may be unavailable; you can retry.',job.id).run()
