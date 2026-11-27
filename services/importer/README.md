@@ -29,3 +29,8 @@ Manage Music → **Repair artwork & lyrics** queues up to 25 existing imported s
 Deployment requires D1 migration `0013_song_enrichment.sql`, the updated API Worker, the updated Cloud Run image (which now includes `enrichment.py`), and the updated web app. Apply the migration before deploying the updated Worker. No production migration, backfill or deployment is performed by a local build.
 
 Provider references: https://lrclib.net/docs and https://ytmusicapi.readthedocs.io/en/stable/reference/browsing.html
+## YouTube extraction failures
+
+Use yt-dlp 2026.11.23 or newer. The previously deployed 2026.10.26 build failed YouTube JavaScript challenges from Cloud Run and exposed only storyboard images, producing a misleading requested-format error for otherwise playable songs. A same-image, same-session Cloud Run comparison restored AAC format 140 for both affected sources after upgrading only yt-dlp. See the [upstream release](https://github.com/yt-dlp/yt-dlp/releases/tag/2026.11.23), including updated YouTube player handling. Rebuild and redeploy the importer to update its installed package; deploying only the frontend or Worker does not rebuild Cloud Run.
+
+Downloader warnings are captured so the logger can classify challenge failures, missing formats, and verification problems. Authenticated stderr remains private; only fixed, recognized diagnostic messages are logged.

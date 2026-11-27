@@ -186,7 +186,7 @@
 
 .km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-song-heading,
 .km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-song { grid-template-columns:minmax(0,1.8fr) minmax(0,.9fr) 40px }
-@media(max-width:639px) { .km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-song { grid-template-columns:minmax(0,1fr) 28px } }
+@media(max-width:639px) { .km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-song { grid-template-columns:minmax(0,1fr) 36px } }
 
 .km-album-card .km-album-open { display:flex; flex-direction:column; align-items:stretch; gap:0; width:100%; min-width:0; padding:0; border:0; background:transparent; color:inherit; text-align:left; border-radius:0; box-shadow:none }
 .km-album-card .km-music-card { border:1px solid transparent; border-radius:12px }
@@ -206,4 +206,6 @@
 
 /* Give Songs transport controls breathing room on both sides. */
 .km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-play { margin-inline:8px }
-@media(max-width:639px) { .km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-play { margin-inline:6px } }
+@media(max-width:639px) { .km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-play { margin-inline:10px } }
+
+.km-library-more-trigger { box-sizing:border-box; display:grid; place-items:center; width:36px; min-width:36px; height:36px; min-height:36px; padding:6px }

@@ -38,8 +38,8 @@ def run(arguments, timeout=120):
         if "--cookies" in arguments:
             # Parser errors can echo a cookie row. Keep authenticated stderr private.
             diagnostic = "Authenticated download failed; detailed output withheld"
-            for needle, message in (("not a bot", "YouTube still requires sign-in verification"), ("HTTP Error 403", "Source returned HTTP 403"), ("PO Token", "Source requires an additional playback token"), ("cookies are no longer valid", "YouTube session cookies are no longer valid")):
-                if needle in result.stderr:
+            for needle, message in (("challenge solving failed", "YouTube JavaScript challenge could not be solved"), ("requested format is not available", "Requested source format is unavailable"), ("only images are available", "Source exposes images but no playable streams"), ("not a bot", "YouTube still requires sign-in verification"), ("http error 403", "Source returned HTTP 403"), ("po token", "Source requires an additional playback token"), ("cookies are no longer valid", "YouTube session cookies are no longer valid")):
+                if needle in result.stderr.lower():
                     diagnostic = message
                     break
         logging.getLogger('king_sports.music').warning('Media command failed (%s): %s', arguments[0], diagnostic)
@@ -48,7 +48,7 @@ def run(arguments, timeout=120):
 
 
 def downloader(*args):
-    return ["yt-dlp", "--ignore-config", "--js-runtimes", "node", "--no-playlist", "--no-warnings", "--socket-timeout", "20", *args]
+    return ["yt-dlp", "--ignore-config", "--js-runtimes", "node", "--no-playlist", "--socket-timeout", "20", *args]
 
 
 def youtube_cookie_arguments(directory):

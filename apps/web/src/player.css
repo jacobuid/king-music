@@ -218,3 +218,38 @@ body:has(.km-player-bar) { --km-player-height:88px }
 
 .km-player-art-space { display:contents }
 @media(max-width:639px) { .km-player-art-space { display:grid; place-items:center; container-type:size; min-width:0; min-height:0; width:100%; height:100% }.km-now-playing-body .km-player-art-space>.km-artwork { width:min(100cqw,100cqh); height:min(100cqw,100cqh); max-width:100%; max-height:100%; min-width:0; min-height:0; object-fit:contain } }
+
+.km-player-menu { flex-shrink:0 }
+.km-player-menu>.km-icon-button { border:0; background:transparent; box-shadow:none }
+.km-player-menu-options { position:absolute; z-index:5; top:80px; right:16px; width:min(250px,calc(100% - 32px)); max-height:calc(var(--player-visible-height,100dvh) - 110px); overflow-y:auto; padding:8px; border:1px solid #596078; border-radius:14px; background:#121728; box-shadow:0 12px 40px #000a; text-align:left }
+.km-player-menu-options>button { display:flex; align-items:center; justify-content:flex-start; gap:12px; width:100%; min-height:44px; padding:10px; background:transparent; border:0; border-radius:8px; color:white; text-align:left; font-size:14px }
+.km-player-menu-options>button:hover { background:#ffffff0a }
+.km-player-menu-options>button>svg { width:22px; height:22px; flex-shrink:0 }
+@media(max-height:500px) { .km-player-menu-options { top:58px; max-height:calc(var(--player-visible-height,100dvh) - 74px) } }
+
+.km-player-header-actions { display:flex; align-items:center; gap:4px; flex-shrink:0 }
+.km-player-header-actions>.km-icon-button { background:transparent; border:0; box-shadow:none }
+@media(max-width:639px) { .km-now-playing-header .km-player-wordmark { width:clamp(120px,38vw,200px); min-width:0; flex-shrink:1 }.km-player-header-actions .km-icon-button { width:36px; min-width:36px; min-height:40px; padding:6px } }
+
+.km-now-playing .km-player-lyrics { display:flex; flex-direction:column; flex:1 1 0; padding:0; min-height:0; overflow:hidden; background:rgba(5,8,15,.82); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px) }
+.km-lyrics-song-header { display:flex; align-items:center; flex-shrink:0; gap:12px; padding:16px 24px; border-bottom:1px solid #ffffff19; background:rgba(5,8,15,.6) }
+.km-lyrics-song-header>.km-artwork { width:48px; height:48px; border-radius:8px; flex-shrink:0; object-fit:cover }
+.km-lyrics-song-identity { flex:1; min-width:0 }
+.km-lyrics-song-identity strong,.km-lyrics-song-identity small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.km-lyrics-song-identity strong { font-size:16px; color:#fff }
+.km-lyrics-song-identity small { margin-top:4px; font-size:13px; color:#c8cbd4 }
+.km-lyrics-transport { display:flex; align-items:center; gap:4px; flex-shrink:0 }
+.km-lyrics-transport>.km-icon-button { width:32px; min-width:32px; min-height:36px; padding:4px; border:0; background:transparent }
+.km-now-playing .km-lyrics-transport>.km-play-button { width:40px; height:40px; min-height:40px; padding:8px; border:0; background:transparent; box-shadow:none }
+.km-lyrics-transport svg { width:22px; height:22px }
+.km-lyrics-scroll { flex:1 1 0; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:24px 28px 36px }
+.km-player-lyrics .km-player-lyrics-text { color:#f0f1f5 }
+.km-player-lyrics .km-player-synced-lyrics button { color:#d3d6df }
+.km-player-lyrics .km-player-synced-lyrics button[aria-current=true] { color:#ffb000 }
+@media(max-width:639px) { .km-lyrics-song-header { padding:12px 16px; gap:10px }.km-lyrics-song-identity strong { font-size:14px }.km-lyrics-song-identity small { font-size:12px }.km-lyrics-song-header>.km-artwork { width:42px; height:42px }.km-lyrics-scroll { padding:20px 22px 28px }.km-lyrics-transport { gap:0 }.km-lyrics-transport>.km-icon-button { width:28px; min-width:28px } }
+
+/* The three player tabs share a clipped stage for directional slides. */
+.km-player-panels { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); flex:1 1 0; min-width:0; min-height:0; overflow:hidden; isolation:isolate }
+.km-player-panels>[id^="player-view-"] { grid-area:1 / 1; min-width:0; min-height:0; max-height:100%; margin:0 }
+.km-player-panels>[aria-hidden=true] { pointer-events:none }
+@media(min-width:640px) { .km-now-playing { height:min(680px,var(--player-visible-height,100dvh)) } }

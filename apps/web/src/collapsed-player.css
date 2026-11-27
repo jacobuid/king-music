@@ -22,3 +22,5 @@
 @media(max-width:639px) { .km-player-bar.km-collapsed-player { grid-template-columns:minmax(0,1fr) auto; gap:8px }.km-mini-track { gap:10px }.km-mini-art>.km-artwork { width:44px; height:44px }.km-mini-title { font-size:14px }.km-mini-track small { font-size:11px }.km-mini-playback { gap:2px }.km-mini-time,.km-mini-tools { display:none }.km-player-bar.km-collapsed-player .km-icon-button { width:28px; min-width:28px; padding:4px } }
 
 .km-mini-toggle svg { fill:currentColor }
+
+.km-collapsed-player { cursor:pointer }
