@@ -1,3 +1,4 @@
+import {songRequestRoutes} from './song-requests'
 import {collectionDetailsRoute} from './collection-details'
 import { homeActivityRoutes } from './home-activity'
 import { managementRoute, managementAccess } from './management'
@@ -36,6 +37,8 @@ export default {
       const active = await profileAccess(request, env, userId) || manager
       if (/^\/api\/admin\/(catalog|uploads|imports)(\/|$)/.test(path) && active?.role!=='adult') return withCors(json({error:'Adult profile required'},403),cors)
       if (!active) return withCors(json({ error: 'Unlock a profile first' }, 403), cors)
+      const requestResponse=await songRequestRoutes(request,env,active)
+      if(requestResponse)return withCors(requestResponse,cors)
       const importResponse = await importRoutes(request, env, active)
       if (importResponse) return withCors(importResponse, cors)
       const uploadResponse = await uploadRoutes(request, env, active)

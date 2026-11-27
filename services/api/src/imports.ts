@@ -29,8 +29,7 @@ async function service(env: Env, path: string, body: unknown) {
   return response.json() as Promise<{ results?: Song[]; title?: string; tracks?: Song[]; skipped?: number }>
 }
 const publicJob = (j: Job) => {
-  const repairing=j.status==='ready'&&(j.artwork_status==='pending'||j.lyrics_status==='pending')
-  return {id:j.id,videoId:j.video_id,title:j.title,artist:j.artist,status:repairing?'processing':j.status,error:j.error,artworkStatus:j.artwork_status,lyricsStatus:j.lyrics_status,progress:repairing?99:j.status==='ready'?100:Math.min(99,j.progress||0),stage:repairing?'artwork':j.status==='ready'?'ready':j.status==='failed'?'failed':j.progress_stage||j.status}
+  return {id:j.id,videoId:j.video_id,title:j.title,artist:j.artist,status:j.status,error:j.error,artworkStatus:j.artwork_status,lyricsStatus:j.lyrics_status,progress:j.status==='ready'?100:Math.min(99,j.progress||0),stage:j.status==='ready'?'ready':j.status==='failed'?'failed':j.progress_stage||j.status}
 }
 async function rateLimit(env: Env, profileId: string) {
   return env.DB.prepare('INSERT INTO import_search_limits(user_id,requested_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET requested_at=excluded.requested_at WHERE import_search_limits.requested_at<? RETURNING requested_at').bind(profileId, Date.now(), Date.now()-1500).first()
@@ -177,7 +176,7 @@ export async function importCallback(request: Request, env: Env): Promise<Respon
     let enriched
     try { enriched=await enrichmentStatements(env,job.id,b.enrichment) } catch { return json({error:'Artwork or lyrics data is invalid'},409) }
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO media(id,title,artist,album,video_key,mime_type,category,kids_allowed,user_id,youtube_video_id,thumbnail_url,thumbnail_key) VALUES(?,?,?,?,?,'audio/mp4','Music',0,?,?,?,?) ON CONFLICT(user_id,youtube_video_id) WHERE youtube_video_id IS NOT NULL DO NOTHING").bind(job.id,clean(b.title,200)||job.title,clean(b.artist,200)||job.artist,clean(b.album,200)||job.album,`music/${job.id}.m4a`,job.user_id,job.video_id,job.thumbnail_url,enriched.coverKey),
+      env.DB.prepare("INSERT INTO media(id,title,artist,album,video_key,mime_type,category,kids_allowed,user_id,youtube_video_id,thumbnail_url,thumbnail_key) VALUES(?,?,?,?,?,'audio/mp4','Music',EXISTS(SELECT 1 FROM song_requests WHERE user_id=? AND video_id=? AND status='approved'),?,?,?,?) ON CONFLICT(user_id,youtube_video_id) WHERE youtube_video_id IS NOT NULL DO NOTHING").bind(job.id,clean(b.title,200)||job.title,clean(b.artist,200)||job.artist,clean(b.album,200)||job.album,`music/${job.id}.m4a`,job.user_id,job.video_id,job.user_id,job.video_id,job.thumbnail_url,enriched.coverKey),
       ...enriched.statements,
       env.DB.prepare('INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) SELECT ip.playlist_id,m.id,ip.position FROM import_playlist_tracks ip JOIN media m ON m.youtube_video_id=? AND m.user_id=? WHERE ip.job_id=?').bind(job.video_id,job.user_id,job.id),
       env.DB.prepare("UPDATE import_jobs SET status='ready',progress=100,progress_stage='ready',error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(job.id),

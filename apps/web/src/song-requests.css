@@ -1,0 +1,26 @@
+.km-header-actions{display:flex;align-items:center;gap:14px;margin-left:auto}
+.km-request-bell{position:relative;flex-shrink:0;width:44px;height:44px}
+.km-request-badge{position:absolute;top:-5px;right:-6px;min-width:21px;height:21px;display:grid;place-items:center;border-radius:20px;padding:0 4px;background:#ffb000;color:#10121c;font-size:11px;font-weight:800}
+.km-requests-dialog{width:min(860px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--km-border);border-radius:22px;background:var(--km-surface);color:var(--km-text);overflow:hidden}
+.km-requests-dialog[open]{display:flex;flex-direction:column}
+.km-requests-dialog::backdrop{background:#000a;backdrop-filter:blur(6px)}
+.km-requests-dialog>header{flex-shrink:0;padding:24px;border-bottom:1px solid var(--km-border)}
+.km-requests-dialog h2{margin:0}
+.km-requests-dialog header p{margin:8px 0 0}
+.km-requests-dialog .km-section-heading{align-items:flex-start;gap:12px}
+.km-request-toolbar{display:flex;gap:10px;justify-content:space-between;margin-top:20px;flex-wrap:wrap}
+.km-requests-body{overflow-y:auto;overscroll-behavior:contain;padding:0 24px 24px;min-height:0}
+.km-requests-body article{display:grid;grid-template-columns:36px 60px minmax(0,1fr) auto;gap:14px;align-items:center;padding:20px 0;border-bottom:1px solid var(--km-border)}
+.km-requests-body .km-artwork{width:60px;height:60px;object-fit:cover;border-radius:10px}
+.km-request-info{display:grid;gap:5px;overflow-wrap:anywhere}
+.km-request-info small{color:var(--km-muted)}
+.km-request-select{width:36px;height:36px;padding:6px}
+.km-request-select[aria-pressed=true]{color:#ffb000;border-color:#ffb000}
+.km-request-actions{display:grid;gap:8px}
+.km-request-actions button{min-height:40px;padding:8px 12px}
+.km-library-song.km-request-song{grid-template-columns:minmax(0,1fr) minmax(100px,.4fr) auto}
+.km-request-button{min-height:44px;padding:8px 12px;gap:6px;white-space:nowrap}
+@media(max-width:639px){.km-header-actions{gap:10px}.km-requests-dialog>header{padding:18px}.km-requests-body{padding:0 18px 18px}.km-requests-body article{grid-template-columns:30px 48px minmax(0,1fr);gap:10px}.km-requests-body .km-artwork{width:48px;height:48px}.km-request-actions{grid-column:2/-1;display:flex;justify-content:flex-end}.km-library-song-list .km-library-song.km-request-song{grid-template-columns:minmax(0,1fr) auto}.km-request-button{font-size:12px;padding:8px}.km-request-button svg{width:16px}.km-request-song .km-library-album{display:none}}
+
+.km-requests-body .km-request-select{min-width:36px}
+@media(max-width:639px){.km-requests-body article{grid-template-columns:36px 48px minmax(0,1fr);gap:12px}}

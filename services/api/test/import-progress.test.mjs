@@ -28,3 +28,16 @@ test('failed imports retain progress, ignore late updates and reset to zero when
  assert.equal((await worker.fetch(req('/api/discovery/song',{body:{videoId:'abcdefghijk',title:'Progress song'}}),env)).status,202)
  job=db.prepare('SELECT * FROM import_jobs WHERE id=?').get(id);assert.equal(job.progress,0);assert.equal(job.progress_stage,'queued');assert.equal(job.status,'queued');db.close()
 })
+
+
+test('completed songs stay complete while optional artwork or lyrics repairs are pending',async()=>{
+ const {db,env}=setup();seed(db);
+ db.prepare('INSERT INTO import_jobs(id,profile_id,user_id,video_id,title,status,progress,progress_stage) VALUES(?,?,?,?,?,?,?,?)').run(id,'adult','u1','abcdefghijk','Imported song','ready',100,'ready');
+ db.prepare('INSERT INTO media(id,title,video_key,mime_type,category,user_id) VALUES(?,?,?,?,?,?)').run(id,'Imported song','music/'+id+'.m4a','audio/mp4','Music','u1');
+ db.prepare('INSERT INTO song_enrichment(media_id,artwork_status,lyrics_status) VALUES(?,?,?)').run(id,'pending','pending');
+ for(const path of ['/api/admin/imports','/api/discovery/imports']){
+  const data=await(await worker.fetch(req(path),env)).json();
+  assert.equal(data.jobs[0].status,'ready');assert.equal(data.jobs[0].progress,100);assert.equal(data.jobs[0].stage,'ready');
+ }
+ db.close();
+});
