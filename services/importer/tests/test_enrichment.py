@@ -66,7 +66,7 @@ class ImportEnrichmentTests(unittest.TestCase):
     @patch.object(service,'callback')
     def test_successful_audio_import_sends_enrichment_to_d1(self,callback,prepare,upload,enrich):
         callback.return_value={'status':'queued','title':'Song','artist':'Artist','album':'Album'}
-        def audio(directory,video):
+        def audio(directory,video,progress=None):
             path=directory/'track.m4a';path.write_bytes(b'audio');(directory/'source.info.json').write_text('{}');return path,{'status':'ready','title':'Song','duration':120}
         prepare.side_effect=audio
         result=self.client.post('/process',json=self.job,headers=self.headers)

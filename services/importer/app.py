@@ -1,3 +1,4 @@
+from import_progress import ImportProgress, run_download, media_failure
 from enrichment import prepare_artwork, lyrics_for_song
 """King Music private importer. Cloud Tasks owns the lifetime of every import."""
 import hmac
@@ -34,16 +35,7 @@ def run(arguments, timeout=120):
     # Never run a shell or accept user-supplied yt-dlp flags/URLs.
     result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
     if result.returncode:
-        diagnostic = result.stderr[-2000:]
-        if "--cookies" in arguments:
-            # Parser errors can echo a cookie row. Keep authenticated stderr private.
-            diagnostic = "Authenticated download failed; detailed output withheld"
-            for needle, message in (("challenge solving failed", "YouTube JavaScript challenge could not be solved"), ("requested format is not available", "Requested source format is unavailable"), ("only images are available", "Source exposes images but no playable streams"), ("not a bot", "YouTube still requires sign-in verification"), ("http error 403", "Source returned HTTP 403"), ("po token", "Source requires an additional playback token"), ("cookies are no longer valid", "YouTube session cookies are no longer valid")):
-                if needle in result.stderr.lower():
-                    diagnostic = message
-                    break
-        logging.getLogger('king_sports.music').warning('Media command failed (%s): %s', arguments[0], diagnostic)
-        raise RuntimeError("Media processing failed")
+        media_failure(arguments, result.stderr)
     return result.stdout
 
 
@@ -275,8 +267,8 @@ def enqueue(job: Job):
     return {"queued": True}
 
 
-def callback(job, method="GET", data=None, suffix=""):
-    response = requests.request(method, job.callbackUrl + suffix, headers={"Authorization": f"Bearer {os.environ['MUSIC_SERVICE_TOKEN']}"}, json=data, timeout=30)
+def callback(job, method="GET", data=None, suffix="", timeout=30):
+    response = requests.request(method, job.callbackUrl + suffix, headers={"Authorization": f"Bearer {os.environ['MUSIC_SERVICE_TOKEN']}"}, json=data, timeout=timeout)
     if not response.ok:
         # Log only known validation messages, never arbitrary response text or credentials.
         try:
@@ -289,10 +281,15 @@ def callback(job, method="GET", data=None, suffix=""):
     return response.json()
 
 
-def prepare_audio(directory, video_id):
+def prepare_audio(directory, video_id, progress=None):
     source = f"https://www.youtube.com/watch?v={video_id}"
     # Prefer native AAC/M4A for broad iPhone/Android support, avoiding re-encoding.
-    run(downloader(*youtube_cookie_arguments(directory), "--max-filesize", "50M", "--match-filters", "!is_live & duration <= 1200", "--write-info-json", "--no-write-thumbnail", "-f", "bestaudio[ext=m4a]/bestaudio", "-o", str(directory / "source.%(ext)s"), "--", source), timeout=540)
+    arguments = downloader(*youtube_cookie_arguments(directory), "--max-filesize", "50M", "--match-filters", "!is_live & duration <= 1200", "--write-info-json", "--no-write-thumbnail", "-f", "bestaudio[ext=m4a]/bestaudio", "-o", str(directory / "source.%(ext)s"), "--", source)
+    if progress:
+        run_download(arguments, directory, progress)
+        progress.report(80, "preparing")
+    else:
+        run(arguments, timeout=540)
     candidates = [p for p in directory.glob("source.*") if p.suffix in (".m4a", ".webm", ".opus", ".ogg", ".mp4")]
     if len(candidates) != 1 or candidates[0].stat().st_size > 50 * 1024 * 1024:
         raise RuntimeError("No suitable audio stream")
@@ -331,8 +328,10 @@ def upload_file(job, path, suffix, mime):
         response.raise_for_status()
 
 
-def enrich_song(directory, job, state, metadata, info):
+def enrich_song(directory, job, state, metadata, info, progress=None):
     result = {"duration": metadata.get("duration")}
+    if progress:
+        progress.report(92, "artwork")
     if state.get("needArtwork", True):
         artwork, status = prepare_artwork(directory, job.videoId, state.get("thumbnail"), info, run)
         result["artworkStatus"] = status
@@ -344,6 +343,8 @@ def enrich_song(directory, job, state, metadata, info):
                 result["artworkStatus"] = "failed"
     else:
         result["artworkStatus"] = "ready"
+    if progress:
+        progress.report(96, "lyrics")
     if state.get("needLyrics", True):
         result.update(lyrics_for_song(metadata, job.videoId, youtube_lyrics))
     return result
@@ -371,16 +372,21 @@ def process(job: Job, x_cloudtasks_taskretrycount: str = Header(default="0")):
                     info = {}
                 metadata = {"title": state.get("title"), "artist": state.get("artist"), "album": state.get("album"), "duration": state.get("duration") or info.get("duration")}
             else:
-                audio, metadata = prepare_audio(directory, job.videoId)
+                progress = ImportProgress(lambda data: callback(job, "POST", data, timeout=3))
+                progress.report(1, "starting")
+                audio, metadata = prepare_audio(directory, job.videoId, progress)
                 info = json.loads((directory / "source.info.json").read_text())
                 for key in ("title", "artist", "album"):
                     if state.get(key) and state[key] not in ("Importing song", "YouTube song"):
                         metadata[key] = state[key]
+                progress.report(85, "uploading")
                 upload_file(job, audio, "/upload", "audio/mp4")
-            enriched = enrich_song(directory, job, state, metadata, info)
+                progress.report(91, "uploading")
+            enriched = enrich_song(directory, job, state, metadata, info, None if job.enrichOnly else progress)
             if job.enrichOnly:
                 callback(job, "POST", {"enrichment": enriched}, suffix="/enrichment")
             else:
+                progress.report(99, "saving")
                 callback(job, "POST", {**metadata, "enrichment": enriched})
     except (RuntimeError, subprocess.TimeoutExpired, ValueError, KeyError, StopIteration, FileNotFoundError):
         if job.enrichOnly:

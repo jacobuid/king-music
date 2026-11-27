@@ -1,3 +1,4 @@
+from import_progress import media_failure
 """Downloader diagnostic privacy and error categorization without optional cloud SDKs."""
 import ast
 import logging
@@ -11,7 +12,7 @@ class MediaDiagnosticsTests(unittest.TestCase):
         tree=ast.parse((Path(__file__).parents[1]/'app.py').read_text(encoding='utf-8-sig'))
         nodes=[node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name in ('run','downloader')]
         self.process=Mock(return_value=SimpleNamespace(returncode=1,stderr='',stdout=''))
-        scope={'subprocess':SimpleNamespace(run=self.process),'logging':logging}
+        scope={'subprocess':SimpleNamespace(run=self.process),'logging':logging,'media_failure':media_failure}
         exec(compile(ast.Module(body=nodes,type_ignores=[]),'<media-diagnostics>','exec'),scope)
         self.run=scope['run'];self.downloader=scope['downloader']
 

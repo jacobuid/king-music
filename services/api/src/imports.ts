@@ -6,7 +6,7 @@ const videoPattern = /^[A-Za-z0-9_-]{11}$/
 const playlistPattern = /^[A-Za-z0-9_-]{10,150}$/
 const uuidPattern = /^[a-f0-9-]{36}$/
 type Song = { videoId: string; title: string; artist?: string; album?: string; thumbnail?: string }
-type Job = { id: string; profile_id: string; user_id: string; video_id: string; title: string; artist: string; album: string; thumbnail_url: string | null; status: string; error: string | null; artwork_status?:string; lyrics_status?:string }
+type Job = { id: string; profile_id: string; user_id: string; video_id: string; title: string; artist: string; album: string; thumbnail_url: string | null; status: string; error: string | null; artwork_status?:string; lyrics_status?:string; progress:number; progress_stage:string }
 const configured = (env: Env) => Boolean(env.MUSIC_SERVICE_URL && env.MUSIC_SERVICE_TOKEN)
 const clean = (value: unknown, length: number) => typeof value === 'string' ? value.trim().slice(0, length) : ''
 export function thumbnailUrl(value: unknown): string | null {
@@ -28,7 +28,10 @@ async function service(env: Env, path: string, body: unknown) {
   if (!response.ok) throw new Error('Importer request failed')
   return response.json() as Promise<{ results?: Song[]; title?: string; tracks?: Song[]; skipped?: number }>
 }
-const publicJob = (j: Job) => ({ id: j.id, videoId: j.video_id, title: j.title, artist: j.artist, status: j.status==='ready'&&(j.artwork_status==='pending'||j.lyrics_status==='pending')?'processing':j.status, error: j.error, artworkStatus:j.artwork_status,lyricsStatus:j.lyrics_status })
+const publicJob = (j: Job) => {
+  const repairing=j.status==='ready'&&(j.artwork_status==='pending'||j.lyrics_status==='pending')
+  return {id:j.id,videoId:j.video_id,title:j.title,artist:j.artist,status:repairing?'processing':j.status,error:j.error,artworkStatus:j.artwork_status,lyricsStatus:j.lyrics_status,progress:repairing?99:j.status==='ready'?100:Math.min(99,j.progress||0),stage:repairing?'artwork':j.status==='ready'?'ready':j.status==='failed'?'failed':j.progress_stage||j.status}
+}
 async function rateLimit(env: Env, profileId: string) {
   return env.DB.prepare('INSERT INTO import_search_limits(user_id,requested_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET requested_at=excluded.requested_at WHERE import_search_limits.requested_at<? RETURNING requested_at').bind(profileId, Date.now(), Date.now()-1500).first()
 }
@@ -44,7 +47,7 @@ export async function importRoutes(request: Request, env: Env, profile: { id: st
   if (!path.startsWith('/api/admin/imports')) return null
   if (profile.role !== 'adult') return json({ error: 'Adult profile required' }, 403)
   if (path === '/api/admin/imports' && request.method === 'GET') {
-    await env.DB.prepare("UPDATE import_jobs SET status='failed',error='Import timed out. Please retry.' WHERE user_id=? AND status IN ('queued','processing') AND updated_at<datetime('now','-2 hours')").bind(profile.user_id).run()
+    await env.DB.prepare("UPDATE import_jobs SET status='failed',progress_stage='failed',error='Import timed out. Please retry.' WHERE user_id=? AND status IN ('queued','processing') AND updated_at<datetime('now','-2 hours')").bind(profile.user_id).run()
     const ids=(url.searchParams.get('videoIds')||'').split(',').filter(id=>videoPattern.test(id)).slice(0,50)
     const jobs = await env.DB.prepare('SELECT j.*,e.artwork_status,e.lyrics_status FROM import_jobs j LEFT JOIN song_enrichment e ON e.media_id=j.id WHERE j.user_id=?'+(ids.length?' AND j.video_id IN ('+ids.map(()=>'?').join(',')+')':'')+' ORDER BY j.created_at DESC LIMIT 200').bind(profile.user_id,...ids).all<Job>()
     return json({ configured: configured(env), jobs: jobs.results.map(publicJob) })
@@ -116,7 +119,7 @@ export async function importRoutes(request: Request, env: Env, profile: { id: st
   const mediaRows:{id:string;youtube_video_id:string}[]=[]
   for(let offset=0;offset<ids.length;offset+=99){const part=ids.slice(offset,offset+99);const result=await env.DB.prepare(`SELECT id,youtube_video_id FROM media WHERE user_id=? AND youtube_video_id IN (${part.map(()=>'?').join(',')})`).bind(profile.user_id,...part).all<{id:string;youtube_video_id:string}>();mediaRows.push(...result.results)}
   const mediaByVideo = new Map(mediaRows.map(m=>[m.youtube_video_id,m.id]))
-  const inserts = songs.filter(song=>!mediaByVideo.has(song.videoId)).map(song=>env.DB.prepare("INSERT INTO import_jobs(id,profile_id,user_id,video_id,title,artist,album,thumbnail_url) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM import_jobs WHERE user_id=? AND created_at>=datetime('now','-1 day'))<500 OR EXISTS(SELECT 1 FROM import_jobs WHERE user_id=? AND video_id=? AND status='failed') ON CONFLICT(user_id,video_id) DO UPDATE SET status='queued',error=NULL,updated_at=CURRENT_TIMESTAMP WHERE import_jobs.status='failed' RETURNING *").bind(crypto.randomUUID(),profile.id,profile.user_id,song.videoId,clean(song.title,200)||'Importing song',clean(song.artist,200),clean(song.album,200),thumbnailUrl(song.thumbnail),profile.user_id,profile.user_id,song.videoId))
+  const inserts = songs.filter(song=>!mediaByVideo.has(song.videoId)).map(song=>env.DB.prepare("INSERT INTO import_jobs(id,profile_id,user_id,video_id,title,artist,album,thumbnail_url) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM import_jobs WHERE user_id=? AND created_at>=datetime('now','-1 day'))<500 OR EXISTS(SELECT 1 FROM import_jobs WHERE user_id=? AND video_id=? AND status='failed') ON CONFLICT(user_id,video_id) DO UPDATE SET status='queued',error=NULL,progress=0,progress_stage='queued',updated_at=CURRENT_TIMESTAMP WHERE import_jobs.status='failed' RETURNING *").bind(crypto.randomUUID(),profile.id,profile.user_id,song.videoId,clean(song.title,200)||'Importing song',clean(song.artist,200),clean(song.album,200),thumbnailUrl(song.thumbnail),profile.user_id,profile.user_id,song.videoId))
   const inserted = inserts.length ? await env.DB.batch<Job>(inserts) : []
   const newlyQueued = new Set(inserted.flatMap(result=>result.results.map(job=>job.id)))
   const jobs: Job[] = []
@@ -151,7 +154,7 @@ export async function importCallback(request: Request, env: Env): Promise<Respon
     return json({url:await uploadUrl(env,match[2]==='/upload'?`music/${job.id}.m4a`:`music/${job.id}/cover.jpg`,match[2]==='/upload'?'audio/mp4':'image/jpeg')})
   }
   const raw=await request.text();if(raw.length>220000)return json({error:'Too large'},413)
-  let b: {status?:string;title?:string;artist?:string;album?:string;duration?:number;enrichment?:EnrichmentInput}
+  let b: {status?:string;title?:string;artist?:string;album?:string;duration?:number;enrichment?:EnrichmentInput;progress?:number;stage?:string}
   try { b=JSON.parse(raw) } catch { return json({error:'Invalid JSON'},400) }
   if(match[2]==='/enrichment') {
     if(!b?.enrichment)return json({error:'Missing enrichment data'},400)
@@ -164,7 +167,10 @@ export async function importCallback(request: Request, env: Env): Promise<Respon
     }catch{return json({error:'Artwork or lyrics data is invalid'},409)}
   }
   if(!b || !['processing','ready','failed'].includes(b.status||''))return json({error:'Invalid status'},400)
-  if(job.status==='ready')return json({ok:true})
+  if(b.progress!==undefined||b.stage!==undefined){
+    if(b.status!=='processing'||!Number.isInteger(b.progress)||b.progress!<0||b.progress!>99||!['starting','downloading','preparing','uploading','artwork','lyrics','saving'].includes(b.stage||''))return json({error:'Invalid import progress'},400)
+  }
+  if(job.status==='ready'||job.status==='failed')return json({ok:true})
   if(b.status==='ready') {
     const object=await inspectObject(env,`music/${job.id}.m4a`)
     if(!object || object.mime!=='audio/mp4' || object.size<=0 || object.size>50*1024*1024 || !Number.isFinite(b.duration) || b.duration!<=0 || b.duration!>1200)return json({error:'Audio upload is missing or invalid'},409)
@@ -174,8 +180,9 @@ export async function importCallback(request: Request, env: Env): Promise<Respon
       env.DB.prepare("INSERT INTO media(id,title,artist,album,video_key,mime_type,category,kids_allowed,user_id,youtube_video_id,thumbnail_url,thumbnail_key) VALUES(?,?,?,?,?,'audio/mp4','Music',0,?,?,?,?) ON CONFLICT(user_id,youtube_video_id) WHERE youtube_video_id IS NOT NULL DO NOTHING").bind(job.id,clean(b.title,200)||job.title,clean(b.artist,200)||job.artist,clean(b.album,200)||job.album,`music/${job.id}.m4a`,job.user_id,job.video_id,job.thumbnail_url,enriched.coverKey),
       ...enriched.statements,
       env.DB.prepare('INSERT OR IGNORE INTO playlist_tracks(playlist_id,media_id,position) SELECT ip.playlist_id,m.id,ip.position FROM import_playlist_tracks ip JOIN media m ON m.youtube_video_id=? AND m.user_id=? WHERE ip.job_id=?').bind(job.video_id,job.user_id,job.id),
-      env.DB.prepare("UPDATE import_jobs SET status='ready',error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(job.id),
+      env.DB.prepare("UPDATE import_jobs SET status='ready',progress=100,progress_stage='ready',error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(job.id),
     ])
-  } else await env.DB.prepare('UPDATE import_jobs SET status=?,error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(b.status,b.status==='failed'?'This song could not be imported. The source may be unavailable; you can retry.':null,job.id).run()
+  } else if(b.status==='failed')await env.DB.prepare("UPDATE import_jobs SET status='failed',progress_stage='failed',error=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','processing')").bind('This song could not be imported. The source may be unavailable; you can retry.',job.id).run()
+  else await env.DB.prepare("UPDATE import_jobs SET status='processing',progress=MAX(progress,?),progress_stage=CASE WHEN ?>=progress THEN ? ELSE progress_stage END,error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','processing')").bind(b.progress||0,b.progress||0,b.stage||job.progress_stage||'starting',job.id).run()
   return json({ok:true})
 }

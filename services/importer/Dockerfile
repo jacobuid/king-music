@@ -5,7 +5,7 @@ COPY --from=javascript /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py enrichment.py ./
+COPY app.py enrichment.py import_progress.py ./
 RUN useradd --create-home music
 USER music
 ENV PORT=8080

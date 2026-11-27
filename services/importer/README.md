@@ -38,3 +38,9 @@ Downloader warnings are captured so the logger can classify challenge failures, 
 Song search prefers structured YouTube Music metadata. If the Music API returns a blocked HTML/non-JSON response, metadata-only YouTube search supplies results through the existing authenticated importer session. Successful Music song results are retained if only its video query fails. Fallback results use the same ID, duration, artwork-host validation, deduplication, and relevance ranking; no audio is imported until the listener chooses Download.
 
 Search also supports the public YouTube results page: it reads only embedded video metadata via GET when API POSTs are rejected. This path applies the same duration limits and result validation and does not fetch audio. The extractor search remains a final fallback.
+
+## Import progress
+
+Imports report byte-driven download progress and completed processing milestones through the authenticated callback. Download bytes occupy 1-79%, audio preparation starts at 80%, upload at 85%, artwork at 92%, lyrics at 96%, and final saving at 99%. These are weighted work stages, not an elapsed-time estimate. Only the API sets 100% after validating stored audio and committing the ready song. Unknown download sizes do not fabricate percentages. Updates are throttled, monotonic, stored on the import job, and reset to zero on an explicit failed-job retry. Telemetry failures do not discard completed audio.
+
+Deploy migration 0017 and the API before the new importer and web UI. The importer image includes import_progress.py. The Songs download control and import-details dialog display the persisted percentage in a ring; ready songs use Play.

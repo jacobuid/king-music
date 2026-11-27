@@ -20,7 +20,7 @@ export function SongsPage({profile,songs,query,onQueryChange,request,onImported,
   if(!adult||!signature)return
   let active=true,timer;const controller=new AbortController()
   async function poll(){try{const data=await api.current('/api/discovery/imports?videoIds='+encodeURIComponent(signature),{signal:controller.signal});if(!active)return
-   const jobs=data.jobs||[],updates=Object.fromEntries(jobs.map(job=>[job.videoId,{status:job.status,error:job.error}]))
+   const jobs=data.jobs||[],updates=Object.fromEntries(jobs.map(job=>[job.videoId,{status:job.status,error:job.error,progress:job.progress,stage:job.stage}]))
    setStates(current=>({...current,...updates}))
    if(jobs.some(job=>job.status==='ready'))await refresh.current()
    if(active&&jobs.some(job=>['queued','processing'].includes(job.status)))timer=setTimeout(poll,2500)
@@ -29,7 +29,7 @@ export function SongsPage({profile,songs,query,onQueryChange,request,onImported,
  },[adult,signature,wake])
  async function download(song){
   if(!adult||['queued','processing'].includes(statesRef.current[song.youtubeVideoId]?.status))return
-  const id=song.youtubeVideoId;setStates(current=>({...current,[id]:{status:'queued'}}))
+  const id=song.youtubeVideoId;setStates(current=>({...current,[id]:{status:'queued',progress:0,stage:'queued'}}))
   try{const data=await api.current('/api/discovery/song',{method:'POST',body:JSON.stringify({videoId:id,title:song.title,artist:song.artist,album:song.album,thumbnail:song.thumbnailUrl})});if(!live.current)return;if(data.limited)throw Error('The daily import limit has been reached. Try again later.');if(data.reused)await refresh.current();if(live.current)setWake(value=>value+1)}catch(error){if(live.current)setStates(current=>({...current,[id]:{status:'failed',error:error.message}}))}
  }
  const local=songs.filter(song=>matchesSong(song,term)),localIds=new Set(local.map(song=>song.id)),byVideo=new Map(songs.filter(song=>song.youtubeVideoId).map(song=>[song.youtubeVideoId,song]))
