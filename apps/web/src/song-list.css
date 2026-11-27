@@ -203,3 +203,7 @@
 .km-download-ring { width:28px!important; height:28px!important; fill:none!important; stroke:#ffb000; stroke-width:3; stroke-dasharray:55 24; animation:km-spin 1s linear infinite }
 .km-discovery-error { margin:4px 0 0; font-size:12px; color:#ffb8c4 }
 @media(prefers-reduced-motion:reduce) { .km-download-ring { animation:none } }
+
+/* Give Songs transport controls breathing room on both sides. */
+.km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-play { margin-inline:8px }
+@media(max-width:639px) { .km-library-song-list:not(.km-playlist-song-list):not(.km-album-song-list) .km-library-play { margin-inline:6px } }
