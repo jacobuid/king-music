@@ -191,16 +191,35 @@ def check_job(job):
         raise HTTPException(400, "Invalid callback")
 
 
+def youtube_search(query):
+    # Metadata-only fallback when the Music API returns HTML or malformed JSON.
+    with tempfile.TemporaryDirectory(prefix="king-music-search-") as temporary:
+        data = json.loads(run(downloader(*youtube_cookie_arguments(Path(temporary)), "--flat-playlist", "--dump-single-json", "--playlist-end", "12", "--retries", "1", "--extractor-retries", "1", "--", "ytsearch12:" + query), timeout=40))
+    entries = []
+    for entry in data.get("entries") or []:
+        if not isinstance(entry, dict):
+            continue
+        entries.append({"videoId": entry.get("id"), "title": entry.get("title"), "duration_seconds": entry.get("duration"), "artists": [{"name": entry.get("channel") or entry.get("uploader") or ""}], "thumbnails": entry.get("thumbnails") or [], "album": {"name": entry.get("album") or ""}, "isAvailable": entry.get("availability") not in ("private", "premium_only", "subscriber_only")})
+    return ranked_music_results(query, [], entries)
+
+
 @app.post("/search", dependencies=[Depends(authenticated)])
 def search(body: Search):
+    songs = []
     try:
-        # Each request has an anonymous client/session; no account cookies are used.
+        # Prefer Music's structured song metadata when its API is responding.
         with MusicSession() as session:
             client = YTMusic(requests_session=session)
             songs = client.search(body.query.strip(), filter="songs", limit=12)
             videos = client.search(body.query.strip(), filter="videos", limit=12)
         return {"results": ranked_music_results(body.query, songs, videos)}
     except (YTMusicError, requests.RequestException, ValueError, KeyError, IndexError):
+        if songs:
+            return {"results": ranked_music_results(body.query, songs, [])}
+        logging.getLogger('king_sports.music').warning('Music search unavailable; trying metadata-only YouTube search')
+    try:
+        return {"results": youtube_search(body.query.strip())}
+    except (RuntimeError, subprocess.TimeoutExpired, ValueError, KeyError, FileNotFoundError):
         raise HTTPException(502, "Search unavailable")
 
 
