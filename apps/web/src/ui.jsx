@@ -37,14 +37,14 @@ export function Artwork({ item, index=0, className='' }) {
   const [failed,setFailed]=useState(null)
   return item?.thumbnailUrl && failed!==item.thumbnailUrl ? <img className={`km-artwork ${className}`} src={item.thumbnailUrl} alt="" onError={()=>setFailed(item.thumbnailUrl)}/> : <span className={`km-artwork km-artwork--generated km-artwork--${index%4} ${className}`} aria-hidden="true"><Icon name="music"/><span className="km-art-lines"/></span>
 }
-export function Shell({ profile, section, onNavigate, onSwitch, children }) {
+export function Shell({ profile, section, onNavigate, onSwitch, headerLabel, headerActions, children }) {
   const [expanded,setExpanded]=useState(false)
   const items=[['home','Home'],['library','Songs'],['playlists','Playlists'],['albums','Albums'],['artists','Artists']]
   const iconFor=id=>({library:'music',artists:'profile',albums:'albums',home:'home',playlists:'playlists',admin:'admin'}[id])
   const links=items.map(([id,label])=><button key={id} title={label} aria-label={label} aria-current={section===id?'page':undefined} onClick={()=>onNavigate(id)}><Icon name={iconFor(id)}/><span className="km-nav-label">{label}</span></button>)
   return <div className={`km-app km-shell ${expanded?'km-shell--expanded':''}`}>
     <aside className="km-sidebar"><Brand/><button className="km-sidebar-toggle km-icon-button" aria-label={expanded?'Collapse sidebar':'Expand sidebar'} aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}><Icon name="menu"/></button><p className="km-sidebar-caption">YOUR SOUND. YOUR SPACE.</p><nav aria-label="Main navigation">{links}</nav></aside>
-    <div className="km-content"><header className="km-mobile-header"><Brand/><button className="km-icon-button" aria-label="Search music" onClick={()=>onNavigate('library',true)}><Icon name="search"/></button></header><main className="km-main">{children}</main></div>
+    <div className="km-content"><header className="km-app-header"><Brand/><span className="km-eyebrow">{headerLabel}</span>{headerActions}</header><main className="km-main">{children}</main></div>
     <nav className="km-bottom-nav" aria-label="Mobile navigation">{links}</nav>
   </div>
 }

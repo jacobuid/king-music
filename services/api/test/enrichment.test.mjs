@@ -37,11 +37,11 @@ test('instrumental, missing and failed lyrics are distinct, and untrusted/oversi
  for(const enrichment of [{...assets,lyricsSourceUrl:'https://attacker.example'},{...assets,plainLyrics:'x'.repeat(100001)}])assert.equal((await worker.fetch(callback('/enrichment',{enrichment}),env)).status,409)
  assert.equal((await worker.fetch(new Request(`https://music.test/api/internal/music/${id}/enrichment`,{method:'POST',body:'{}'}),env)).status,401);db.close()
 })
-test('repair jobs are password-gated, account-scoped, durable and not queued twice',async t=>{
+test('repair jobs are adult-only, account-scoped, durable and not queued twice',async t=>{
  const{db,env}=setup();seed(db);await complete(db,env,{lyricsStatus:'missing',artworkStatus:'missing'})
  const original=globalThis.fetch,calls=[];globalThis.fetch=async(url,options)=>{calls.push(JSON.parse(options.body));return Response.json({queued:1})};t.after(()=>globalThis.fetch=original)
- assert.equal((await worker.fetch(req('/api/admin/imports/repair',{body:{}}),env)).status,403)
- const response=await worker.fetch(req('/api/admin/imports/repair',{manage:'manager',body:{}}),env);assert.equal(response.status,202);assert.equal((await response.json()).queued,1);assert.equal(calls[0].jobs[0].enrichOnly,true)
+ assert.equal((await worker.fetch(req('/api/admin/imports/repair',{profile:'kid',body:{}}),env)).status,403)
+ const response=await worker.fetch(req('/api/admin/imports/repair',{body:{}}),env);assert.equal(response.status,202);assert.equal((await response.json()).queued,1);assert.equal(calls[0].jobs[0].enrichOnly,true)
  assert.equal((await(await worker.fetch(req('/api/admin/imports/repair',{manage:'manager',body:{}}),env)).json()).queued,0)
  const state=await(await worker.fetch(callback(''),env)).json();assert.equal(state.needArtwork,true);assert.equal(state.needLyrics,true)
  assert.equal((await worker.fetch(callback('/artwork-upload',{}),env)).status,200);assert.equal((await worker.fetch(callback('/upload',{}),env)).status,409);db.close()

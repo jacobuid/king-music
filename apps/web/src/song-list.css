@@ -198,3 +198,8 @@
 .km-home-shelf-items,.km-home-playlists>.km-grid { grid-auto-flow:row; grid-auto-columns:auto; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; overflow:visible; scroll-snap-type:none }
 @media(max-width:1100px) { .km-home-shelf:not(.km-home-shelf--songs) .km-home-shelf-items,.km-home-playlists>.km-grid { grid-template-columns:repeat(3,minmax(0,1fr)) } }
 @media(max-width:639px) { .km-home-shelf:not(.km-home-shelf--songs) .km-home-shelf-items,.km-home-playlists>.km-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px } }
+
+.km-discovery-download svg:not(.km-download-ring) { fill:none }
+.km-download-ring { width:28px!important; height:28px!important; fill:none!important; stroke:#ffb000; stroke-width:3; stroke-dasharray:55 24; animation:km-spin 1s linear infinite }
+.km-discovery-error { margin:4px 0 0; font-size:12px; color:#ffb8c4 }
+@media(prefers-reduced-motion:reduce) { .km-download-ring { animation:none } }

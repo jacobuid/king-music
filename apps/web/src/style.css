@@ -536,3 +536,22 @@ input[type=file]::file-selector-button { padding: 8px 12px; margin-right: 12px; 
 .km-album-review article { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--km-border) }
 .km-album-review .km-artwork { width:48px; height:48px; flex-shrink:0 }
 .km-album-review article>div { min-width:0; overflow-wrap:anywhere }
+
+/* Keep phone PIN entry in the visible area above the software keyboard. */
+@media(max-width:639px) {
+ .km-profile-unlock { position:fixed; inset:auto 0 auto; top:calc(var(--pin-visible-top,0px) + var(--pin-visible-height,100dvh) / 2); translate:0 -50%; margin:0 auto; max-height:calc(var(--pin-visible-height,100dvh) - max(16px,env(safe-area-inset-top)) - 24px); overflow-y:auto; overscroll-behavior:contain }
+ .km-profile-unlock .km-pin-boxes { margin-top:18px }
+}
+
+.km-app-header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:28px 32px 0; margin-bottom:0 }
+.km-app-header>.km-brand { display:none }
+.km-app-header>.km-eyebrow { margin:0 }
+.km-app-header>.km-profile-menu { flex-shrink:0; margin-left:auto }
+@media(max-width:639px) {
+ .km-app-header { padding:20px 16px 10px; gap:16px }
+ .km-app-header>.km-brand { display:block; width:230px; max-width:calc(100% - 60px) }
+ .km-app-header>.km-eyebrow { display:none }
+}
+
+html.km-installed-app { touch-action:pan-x pan-y }
+html.km-installed-app input,html.km-installed-app textarea,html.km-installed-app select { font-size:max(16px,1em) }

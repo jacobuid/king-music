@@ -33,12 +33,20 @@ async function rateLimit(env: Env, profileId: string) {
   return env.DB.prepare('INSERT INTO import_search_limits(user_id,requested_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET requested_at=excluded.requested_at WHERE import_search_limits.requested_at<? RETURNING requested_at').bind(profileId, Date.now(), Date.now()-1500).first()
 }
 export async function importRoutes(request: Request, env: Env, profile: { id: string; role: string; user_id: string }): Promise<Response | null> {
-  const url = new URL(request.url), path = url.pathname
+  const url = new URL(request.url)
+  let path=url.pathname
+  if(path.startsWith('/api/discovery/')){
+    const routes:Record<string,string>={'GET /api/discovery/search':'/api/admin/imports/search','GET /api/discovery/imports':'/api/admin/imports','POST /api/discovery/song':'/api/admin/imports/song'}
+    const target=routes[request.method+' '+path]
+    if(!target)return json({error:'Not found'},404)
+    path=target
+  }
   if (!path.startsWith('/api/admin/imports')) return null
   if (profile.role !== 'adult') return json({ error: 'Adult profile required' }, 403)
   if (path === '/api/admin/imports' && request.method === 'GET') {
     await env.DB.prepare("UPDATE import_jobs SET status='failed',error='Import timed out. Please retry.' WHERE user_id=? AND status IN ('queued','processing') AND updated_at<datetime('now','-2 hours')").bind(profile.user_id).run()
-    const jobs = await env.DB.prepare('SELECT j.*,e.artwork_status,e.lyrics_status FROM import_jobs j LEFT JOIN song_enrichment e ON e.media_id=j.id WHERE j.user_id=? ORDER BY j.created_at DESC LIMIT 200').bind(profile.user_id).all<Job>()
+    const ids=(url.searchParams.get('videoIds')||'').split(',').filter(id=>videoPattern.test(id)).slice(0,50)
+    const jobs = await env.DB.prepare('SELECT j.*,e.artwork_status,e.lyrics_status FROM import_jobs j LEFT JOIN song_enrichment e ON e.media_id=j.id WHERE j.user_id=?'+(ids.length?' AND j.video_id IN ('+ids.map(()=>'?').join(',')+')':'')+' ORDER BY j.created_at DESC LIMIT 200').bind(profile.user_id,...ids).all<Job>()
     return json({ configured: configured(env), jobs: jobs.results.map(publicJob) })
   }
   if (!configured(env)) return json({ error: 'The YouTube importer is not connected yet.' }, 503)

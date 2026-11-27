@@ -34,7 +34,7 @@ export default {
       if (profileResponse) return withCors(profileResponse, cors)
       const manager = await managementAccess(request,env,userId)
       const active = await profileAccess(request, env, userId) || manager
-      if (/^\/api\/admin\/(catalog|uploads|imports)(\/|$)/.test(path) && !manager) return withCors(json({error:'Confirm your KingAuth password to manage music.'},403),cors)
+      if (/^\/api\/admin\/(catalog|uploads|imports)(\/|$)/.test(path) && active?.role!=='adult') return withCors(json({error:'Adult profile required'},403),cors)
       if (!active) return withCors(json({ error: 'Unlock a profile first' }, 403), cors)
       const importResponse = await importRoutes(request, env, active)
       if (importResponse) return withCors(importResponse, cors)

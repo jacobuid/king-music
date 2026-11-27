@@ -14,10 +14,10 @@ test('album merges atomically change grouping and artwork while preserving recor
  assert.equal(db.prepare("SELECT lyrics_plain FROM song_enrichment WHERE media_id='safe'").get().lyrics_plain,'Stored lyrics')
  db.close()
 })
-test('album changes require management access and reject foreign songs or artwork without partial changes',async()=>{
+test('album changes require adult access and reject foreign songs or artwork without partial changes',async()=>{
  const {db,env}=setup();seed(db)
  const body={ids:['safe'],album:'New album',artist:'Artist'}
- assert.equal((await worker.fetch(req('/api/admin/catalog/album',{body}),env)).status,403)
+ assert.equal((await worker.fetch(req('/api/admin/catalog/album',{profile:'',body}),env)).status,403)
  assert.equal((await worker.fetch(req('/api/admin/catalog/album',{profile:'kid',body}),env)).status,403)
  db.exec("UPDATE media SET album='Original',thumbnail_key='music/foreign.jpg' WHERE user_id='u2'")
  const before=db.prepare('SELECT id,album,artist,thumbnail_key FROM media ORDER BY id').all()
